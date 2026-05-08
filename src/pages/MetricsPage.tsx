@@ -2,12 +2,11 @@ import { useState, useRef } from 'react';
 import {
   Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, Paper, IconButton, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Chip, Alert, Checkbox, Tooltip,
+  TableContainer, TableHead, TableRow, Chip, Alert, Checkbox, Tooltip, CircularProgress,
 } from '@mui/material';
-import { Add, Delete, Upload, PictureAsPdf, DeleteSweep } from '@mui/icons-material';
+import { Add, Delete, PictureAsPdf, DeleteSweep } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { v4 as uuid } from 'uuid';
-import Papa from 'papaparse';
 import { useApp } from '../store/AppContext';
 import { Metric } from '../types';
 import { extractPDFText, parseGSDMetrics } from '../utils/pdfImport';
@@ -18,16 +17,32 @@ const METRIC_TYPES = ['CSAT', 'Case ARR', 'AHT', 'CPH', 'ACW', 'Contacts Missed 
 const PERIODS = ['weekly', 'monthly', 'quarterly'] as const;
 const PCT_TYPES = ['CSAT', 'Case ARR', 'Transfer Rate', 'Dual Chat Overlap %', 'Dual Chat Rate', 'Contacts Missed %'];
 
+// Min threshold types: higher is better (value should be ≥ target)
+const MIN_THRESHOLD_TYPES = ['CSAT', 'Case ARR', 'Dual Chat Overlap %', 'Custom'];
+
+function thresholdColor(type: string, value: number, target: number): string {
+  if (!target) return 'inherit';
+  const higherIsBetter = MIN_THRESHOLD_TYPES.includes(type);
+  const met = higherIsBetter ? value >= target : value <= target;
+  return met ? '#2e7d32' : '#c62828';
+}
+
+function targetLabel(type: string, target: number): string {
+  if (!target) return '—';
+  const prefix = MIN_THRESHOLD_TYPES.includes(type) ? 'Min' : 'Max';
+  return `${prefix}: ${target}`;
+}
+
 export default function MetricsPage() {
   const { state, dispatch } = useApp();
   const [open, setOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<Metric[] | null>(null);
   const [pdfSelected, setPdfSelected] = useState<Set<string>>(new Set());
   const [pdfError, setPdfError] = useState('');
   const [showRawTable, setShowRawTable] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
   const { control, handleSubmit, reset } = useForm<Omit<Metric, 'id'>>();
 
@@ -36,35 +51,19 @@ export default function MetricsPage() {
     setOpen(false);
   };
 
-  const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      complete: (results) => {
-        const metrics: Metric[] = (results.data as Record<string, string>[])
-          .filter((row) => row.type && row.value && row.date)
-          .map((row) => ({
-            id: uuid(), type: row.type, value: Number(row.value), target: Number(row.target || 0),
-            date: row.date, period: (row.period as Metric['period']) || 'monthly', notes: row.notes || '', channel: row.channel || '',
-          }));
-        if (metrics.length) dispatch({ type: 'IMPORT_METRICS', payload: metrics });
-      },
-    });
-    e.target.value = '';
-  };
-
   const handlePDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setPdfError('');
+    setImporting(true);
     try {
       const text = await extractPDFText(file);
       const metrics = parseGSDMetrics(text);
       if (metrics.length === 0) { setPdfError('No metrics found in PDF.'); return; }
       setPdfPreview(metrics);
       setPdfSelected(new Set(metrics.map((m: Metric) => m.id)));
-    } catch (err: any) { setPdfError(`Failed to parse PDF: ${err.message}`); }
+    } catch (err) { setPdfError(`Failed to parse PDF: ${err instanceof Error ? err.message : 'An unexpected error occurred'}`); }
+    finally { setImporting(false); }
     e.target.value = '';
   };
 
@@ -112,9 +111,9 @@ export default function MetricsPage() {
             </Tooltip>
           )}
           <input ref={pdfRef} type="file" accept=".pdf" hidden onChange={handlePDF} />
-          <Button variant="outlined" color="secondary" startIcon={<PictureAsPdf />} onClick={() => pdfRef.current?.click()}>Import PDF</Button>
-          <input ref={fileRef} type="file" accept=".csv" hidden onChange={handleCSV} />
-          <Button variant="outlined" startIcon={<Upload />} onClick={() => fileRef.current?.click()}>Import CSV</Button>
+          <Button variant="outlined" color="secondary" startIcon={importing ? <CircularProgress size={16} /> : <PictureAsPdf />} onClick={() => pdfRef.current?.click()} disabled={importing}>
+            {importing ? 'Importing...' : 'Import PDF'}
+          </Button>
           <Button variant="contained" startIcon={<Add />} onClick={() => { reset({ type: 'CSAT', value: 0, target: 0, date: new Date().toISOString().split('T')[0], period: 'monthly', notes: '', channel: '' }); setOpen(true); }}>Add Metric</Button>
         </Box>
       </Box>
@@ -122,7 +121,7 @@ export default function MetricsPage() {
       {pdfError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setPdfError('')}>{pdfError}</Alert>}
 
       <PageTip id="metrics" title="Metrics Tracking">
-        Import your GSD Scorecard PDF to automatically extract CPH, AHT, CSAT, Case ARR, and other metrics. You can also add metrics manually or import from CSV. The scorecard view mirrors your GSD dashboard. Use "Clear All" to start fresh before importing a new PDF.
+        Import your GSD Scorecard PDF to automatically extract CPH, AHT, CSAT, Case ARR, and other metrics. You can also add metrics manually. The scorecard view mirrors your GSD dashboard. Use "Clear All" to start fresh before importing a new PDF.
       </PageTip>
 
       {/* GSD Scorecard Visual Display */}
@@ -166,8 +165,8 @@ export default function MetricsPage() {
                     <Checkbox checked={selected.has(m.id)} onChange={() => toggleSelect(m.id)} />
                   </TableCell>
                   <TableCell><Chip label={m.type} size="small" color={m.channel === 'Benchmark' ? 'default' : 'primary'} variant={m.channel === 'Benchmark' ? 'outlined' : 'filled'} /></TableCell>
-                  <TableCell>{m.value}{PCT_TYPES.includes(m.type) || m.type.includes('%') ? '%' : ''}</TableCell>
-                  <TableCell>{m.target || '—'}</TableCell>
+                  <TableCell sx={{ color: thresholdColor(m.type, m.value, m.target), fontWeight: m.target ? 600 : undefined }}>{m.value}{PCT_TYPES.includes(m.type) || m.type.includes('%') ? '%' : ''}</TableCell>
+                  <TableCell>{targetLabel(m.type, m.target)}</TableCell>
                   <TableCell>{m.channel}</TableCell>
                   <TableCell>{m.date}</TableCell>
                   <TableCell><Typography variant="caption">{m.notes}</Typography></TableCell>

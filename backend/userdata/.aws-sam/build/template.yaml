@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Promo Track - User Data Persistence API
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+    - arm64
+    Timeout: 10
+    MemorySize: 128
+    Environment:
+      Variables:
+        TABLE_NAME:
+          Ref: UsersTable
+Resources:
+  UserDataApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+        - '*'
+        AllowMethods:
+        - GET
+        - PUT
+        - OPTIONS
+        AllowHeaders:
+        - Content-Type
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: promo-track-users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: userId
+        AttributeType: S
+      KeySchema:
+      - AttributeName: userId
+        KeyType: HASH
+  GetUserDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: get.handler
+      CodeUri: GetUserDataFunction
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: UserDataApi
+            Path: /userdata/{userId}
+            Method: GET
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:GetItem
+          Resource:
+            Fn::GetAtt:
+            - UsersTable
+            - Arn
+    Metadata:
+      SamResourceId: GetUserDataFunction
+  SaveUserDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: save.handler
+      CodeUri: SaveUserDataFunction
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: UserDataApi
+            Path: /userdata/{userId}
+            Method: PUT
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:PutItem
+          Resource:
+            Fn::GetAtt:
+            - UsersTable
+            - Arn
+    Metadata:
+      SamResourceId: SaveUserDataFunction
+Outputs:
+  ApiUrl:
+    Description: User Data API endpoint
+    Value:
+      Fn::Sub: https://${UserDataApi}.execute-api.${AWS::Region}.amazonaws.com/prod

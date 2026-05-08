@@ -27,19 +27,38 @@ export interface UserProfile {
   promotionApprover: string;
 }
 
-export interface STARREntry {
+export interface CustomField {
+  id: string;
+  label: string;
+  type: 'text' | 'image';
+  value: string;
+}
+
+export interface ReviewComment {
+  id: string;
+  text: string;
+  date: string;
+  source: 'manager' | 'engineer';
+  resolved?: boolean;
+  reply?: string;
+}
+
+export interface STAREntry {
   id: string;
   title: string;
   situation: string;
   task: string;
   action: string;
   results: string;
-  reflection: string;
   principles: LeadershipPrinciple[];
   date: string;
   quarter: string;
   impactLevel: 'Low' | 'Medium' | 'High' | 'Critical';
   evidenceLinks: string[];
+  levelDimension?: string;
+  customFields?: CustomField[];
+  hiddenFields?: string[];
+  reviewComments?: ReviewComment[];
 }
 
 export interface Metric {
@@ -53,41 +72,6 @@ export interface Metric {
   channel: string;
 }
 
-export interface Project {
-  id: string;
-  title: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  status: 'In Progress' | 'Completed' | 'Archived';
-  impact: string;
-  stakeholders: string[];
-  outcomes: string[];
-}
-
-export interface FeedbackEntry {
-  id: string;
-  fromName: string;
-  fromTitle: string;
-  relationship: 'Peer' | 'Manager' | 'Cross-functional' | 'Direct Report' | 'Other/Stakeholder';
-  content: string;
-  reasonsNotToSupport: string;
-  supportsPromotion: boolean;
-  date: string;
-  principles: LeadershipPrinciple[];
-  steamDirect: string;
-}
-
-export interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  targetDate: string;
-  progress: number;
-  status: 'Not Started' | 'In Progress' | 'Completed';
-  category: 'Technical' | 'Leadership' | 'Business' | 'Development';
-}
-
 export interface SessionMetadata {
   version: number;
   exportDate: string;
@@ -95,16 +79,39 @@ export interface SessionMetadata {
   appVersion: string;
 }
 
+export interface ActivityLogEntry {
+  timestamp: string;
+  action: string;
+  detail: string;
+}
+
+export interface DimensionResult {
+  strength: 'strong' | 'moderate' | 'weak';
+  summary: string;           // 1 short sentence: what the entries prove for this dimension
+  entryTitles: string[];     // which STAR entry titles cover this dimension
+}
+
+export interface DimensionGap {
+  dimension: string;
+  priority: 'high' | 'medium';
+  suggestion: string;        // 1-2 sentences: what to write about, plain language
+}
+
+export interface DimensionAnalysis {
+  dimensions: Record<string, DimensionResult>;  // keyed by dimension name, only covered/partial dimensions
+  gaps: DimensionGap[];                          // ordered by priority (high first)
+  analyzedAt: string;
+}
+
 export interface AppState {
   profile: UserProfile;
-  starr: STARREntry[];
+  star: STAREntry[];
   metrics: Metric[];
-  projects: Project[];
-  feedback: FeedbackEntry[];
-  goals: Goal[];
   scopeOfRole: string;
   bestReasonsNotToPromote: string;
   additionalInfo: string;
+  activityLog?: ActivityLogEntry[];
+  dimensionAnalysis?: DimensionAnalysis;
 }
 
 export interface PortfolioFile {

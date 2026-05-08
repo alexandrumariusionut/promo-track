@@ -1,0 +1,384 @@
+Received: from GV2PR06MB9828.eurprd06.prod.outlook.com (2603:10a6:150:27c::13)
+ by DB7PR06MB6044.eurprd06.prod.outlook.com with HTTPS; Thu, 15 May 2025
+ 07:42:29 +0000
+Received: from SA0PR11CA0192.namprd11.prod.outlook.com (2603:10b6:806:1bc::17)
+ by GV2PR06MB9828.eurprd06.prod.outlook.com (2603:10a6:150:27c::13) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.8722.30; Thu, 15 May
+ 2025 07:42:26 +0000
+Received: from SA0PR18MB3534.namprd18.prod.outlook.com
+ (2603:10b6:806:1bc:cafe::1a) by SA0PR11CA0192.outlook.office365.com
+ (2603:10b6:806:1bc::17) with Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.8699.31 via Frontend
+ Transport; Thu, 15 May 2025 07:42:25 +0000
+Received: from SJ0PR05CA0140.namprd05.prod.outlook.com (2603:10b6:a03:33d::25)
+ by SA0PR18MB3534.namprd18.prod.outlook.com (2603:10b6:806:9e::10) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.8722.32; Thu, 15 May
+ 2025 07:42:22 +0000
+Received: from SN1PEPF000252A0.namprd05.prod.outlook.com
+ (2603:10b6:a03:33d:cafe::52) by SJ0PR05CA0140.outlook.office365.com
+ (2603:10b6:a03:33d::25) with Microsoft SMTP Server (version=TLS1_3,
+ cipher=TLS_AES_256_GCM_SHA384) id 15.20.8699.24 via Frontend Transport; Thu,
+ 15 May 2025 07:42:22 +0000
+Authentication-Results: spf=fail (sender IP is 54.240.197.235)
+ smtp.mailfrom=us-west-2.amazonses.com; dkim=pass (signature was verified)
+ header.d=amazon.work;dkim=pass (signature was verified)
+ header.d=amazonses.com;dmarc=pass action=none header.from=atoz.amazon.work;
+Received-SPF: Fail (protection.outlook.com: domain of us-west-2.amazonses.com
+ does not designate 54.240.197.235 as permitted sender)
+ receiver=protection.outlook.com; client-ip=54.240.197.235;
+ helo=smtp.exodus.email.amazon.dev;
+Received: from smtp.exodus.email.amazon.dev (54.240.197.235) by
+ SN1PEPF000252A0.mail.protection.outlook.com (10.167.242.7) with Microsoft
+ SMTP Server (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id
+ 15.20.8722.18 via Frontend Transport; Thu, 15 May 2025 07:42:21 +0000
+Received: from EX19MTAEUB001.ant.amazon.com (10.252.51.26) by
+ EX19EXOEUB002.ant.amazon.com (10.252.51.83) with Microsoft SMTP Server
+ (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA) id 15.2.1544.14;
+ Thu, 15 May 2025 07:42:02 +0000
+Received: from EX19MTAEUC002.ant.amazon.com (10.252.51.245) by
+ EX19MTAEUB001.ant.amazon.com (10.252.51.28) with Microsoft SMTP Server
+ (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA) id 15.2.1544.14;
+ Thu, 15 May 2025 07:42:01 +0000
+Received: from fireeye-ex-3007.amazon.com (10.252.50.132) by
+ mail-relay.amazon.com (10.252.51.135) with Microsoft SMTP Server
+ (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id
+ 15.2.1544.14 via Frontend Transport; Thu, 15 May 2025 07:42:01 +0000
+Received: by fireeye-ex-3007.amazon.com (Postfix, from userid 600)
+	id 4ZyhxP4KqSz394jM; Thu, 15 May 2025 07:41:32 +0000 (UTC)
+Received: from internal-dub-in-002.mail-perimeter.amazon.com (unknown [10.3.75.8])
+	by fireeye-ex-3007.amazon.com (Postfix) with ESMTPS id 4Zyhwq0n41z394gW
+	for <marindru@amazon.com>; Thu, 15 May 2025 07:41:31 +0000 (UTC)
+X-CSE-ConnectionGUID: 5BqtB2o5QuGgK62g2tASzw==
+X-CSE-MsgGUID: lpSEuV+wTtq9G2TNmgw4eQ==
+Received-SPF: None
+  (cluster01.eu-west-1.mail-perimeter.amazon.com: no sender
+  authenticity information available from domain of
+  shout-outs-notifications@atoz.amazon.work) identity=pra;
+  client-ip=23.251.237.83;
+  receiver=cluster01.eu-west-1.mail-perimeter.amazon.com;
+  envelope-from="01010196d2e4251a-52529533-10a6-4929-a397-6cdd6a7416a8-000000@us-west-2.amazonses.com";
+  x-sender="shout-outs-notifications@atoz.amazon.work";
+  x-conformance=sidf_compatible
+Received-SPF: Pass
+  (cluster01.eu-west-1.mail-perimeter.amazon.com: domain of
+  01010196d2e4251a-52529533-10a6-4929-a397-6cdd6a7416a8-000000@us-west-2.amazonses.com
+  designates 23.251.237.83 as permitted sender)
+  identity=mailfrom; client-ip=23.251.237.83;
+  receiver=cluster01.eu-west-1.mail-perimeter.amazon.com;
+  envelope-from="01010196d2e4251a-52529533-10a6-4929-a397-6cdd6a7416a8-000000@us-west-2.amazonses.com";
+  x-sender="01010196d2e4251a-52529533-10a6-4929-a397-6cdd6a7416a8-000000@us-west-2.amazonses.com";
+  x-conformance=sidf_compatible; x-record-type="v=spf1";
+  x-record-text="v=spf1 ip4:199.255.192.0/22
+  ip4:199.127.232.0/22 ip4:54.240.0.0/18 ip4:69.169.224.0/20
+  ip4:23.249.208.0/20 ip4:23.251.224.0/19 ip4:76.223.176.0/20
+  ip4:54.240.64.0/19 ip4:54.240.96.0/19 ip4:76.223.128.0/19
+  ip4:216.221.160.0/19 ip4:206.55.144.0/20 -all"
+Received-SPF: None
+  (cluster01.eu-west-1.mail-perimeter.amazon.com: no sender
+  authenticity information available from domain of
+  postmaster@e237-83.smtp-out.us-west-2.amazonses.com)
+  identity=helo; client-ip=23.251.237.83;
+  receiver=cluster01.eu-west-1.mail-perimeter.amazon.com;
+  envelope-from="01010196d2e4251a-52529533-10a6-4929-a397-6cdd6a7416a8-000000@us-west-2.amazonses.com";
+  x-sender="postmaster@e237-83.smtp-out.us-west-2.amazonses.com";
+  x-conformance=sidf_compatible
+Authentication-Results-Original:
+ cluster01.eu-west-1.mail-perimeter.amazon.com; spf=None
+ smtp.pra=shout-outs-notifications@atoz.amazon.work; spf=Pass
+ smtp.mailfrom=01010196d2e4251a-52529533-10a6-4929-a397-6cdd6a7416a8-000000@us-west-2.amazonses.com;
+ spf=None smtp.helo=postmaster@e237-83.smtp-out.us-west-2.amazonses.com;
+ dkim=pass (signature verified) header.i=@atoz.amazon.work; dmarc=pass
+ (p=quarantine dis=none) d=amazon.work
+X-ThreatScanner-Verdict: Negative
+X-Amazon-43fc83a88267a41139bd3dd5633d50a618202db4: 1
+Received: from e237-83.smtp-out.us-west-2.amazonses.com ([23.251.237.83])
+  by cluster01.eu-west-1.mail-perimeter.amazon.com with ESMTP/TLS/ECDHE-RSA-AES256-GCM-SHA384; 15 May 2025 07:41:30 +0000
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=5tkyg2nycvvyvhyickuudppeq2idponz; d=amazon.work; t=1747294889;
+	i=@atoz.amazon.work;
+	h=From:To:Subject:MIME-Version:Content-Type:Message-ID:Date;
+	bh=EfXGac8m/oZkx+TPMdNvOtoNaia7KUU/aTUMrpCdXbE=;
+	b=k3U1QbH5iaFtYdmgzpmsS2xbjLDsKcm7Rp8M59mG3ubdPj37OB2cALKd562QRB09
+	sANO1XrPbw+1kxT1QHwEEUff1Ng7FRVN3QMeyXaYf/7Td7TVpne5ThjTcZc9hQURhWn
+	LFQxNq7eMH7gSG5B21V/sG5kE/vDh6Ei88+w6nyAIcw6hEpA/0fHaurRfcMgrho6nna
+	sUD8JNR2LGk94066k8iVwbffzvGNsjP7+z2rjalalEVb/chkXHPaAVzf6MKAmq1UGow
+	LCNSboK9OHwcdAUnPmdFprlEUg+FVpAJHxYPY4ZudkkR8MQxbobEKy1CmIqLdwG9Chj
+	oUIO76ttHw==
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=gdwg2y3kokkkj5a55z2ilkup5wp5hhxx; d=amazonses.com; t=1747294889;
+	h=From:To:Subject:MIME-Version:Content-Type:Message-ID:Date:Feedback-ID;
+	bh=EfXGac8m/oZkx+TPMdNvOtoNaia7KUU/aTUMrpCdXbE=;
+	b=aWYs5Ec6YUT4eUV8PlTnTHCSC10Chef5BfpF9sN8dNlg+EpNgw7jUfl4Fdg1R6Q+
+	IuiP13jzpwiC/xt+RgqjYeWpJKRLRpsxQiCRyitgHKUDKHyZqMCJzgb5YBYpBpbDKCM
+	h0NZMB3mZFFyihDTTW2IzESkD1d4xUjWncMNQgi4=
+From: Amazon A to Z <shout-outs-notifications@atoz.amazon.work>
+To: marindru@amazon.com
+Subject: Hi Marius Ionut! Sneha Rao sent Alexandru Simion a Shout-Out and
+ wants you to know.
+MIME-Version: 1.0
+Message-ID: <01010196d2e4251a-52529533-10a6-4929-a397-6cdd6a7416a8-000000@us-west-2.amazonses.com>
+Date: Thu, 15 May 2025 07:41:29 +0000
+Feedback-ID: ::1.us-west-2.3nzQbzkj0tp95iQDqdZ3g+K1sg3kuKRXjP1Kt3bLBR4=:AmazonSES
+X-SES-Outgoing: 2025.05.15-23.251.237.83
+Return-Path:
+ 01010196d2e4251a-52529533-10a6-4929-a397-6cdd6a7416a8-000000@us-west-2.amazonses.com
+X-OrganizationHeadersPreserved: EX19EXOEUB002.ant.amazon.com
+X-MS-Exchange-Organization-ExpirationStartTime: 15 May 2025 07:42:22.0032
+ (UTC)
+X-MS-Exchange-Organization-ExpirationStartTimeReason: OriginalSubmit
+X-MS-Exchange-Organization-ExpirationInterval: 1:00:00:00.0000000
+X-MS-Exchange-Organization-ExpirationIntervalReason: OriginalSubmit
+X-MS-Exchange-Organization-Network-Message-Id:
+ f3720e4e-14ad-41f4-8334-08dd93840711
+X-EOPAttributedMessage: 0
+X-MS-Exchange-Organization-MessageDirectionality: Originating
+X-CrossPremisesHeadersPromoted: SN1PEPF000252A0.namprd05.prod.outlook.com
+X-CrossPremisesHeadersFiltered: SN1PEPF000252A0.namprd05.prod.outlook.com
+X-MS-PublicTrafficType: Email
+X-MS-TrafficTypeDiagnostic:
+ SN1PEPF000252A0:EE_|SA0PR18MB3534:EE_|GV2PR06MB9828:EE_|DB7PR06MB6044:EE_
+X-MS-Office365-Filtering-Correlation-Id: f3720e4e-14ad-41f4-8334-08dd93840711
+X-MS-Exchange-Organization-SCL: -1
+X-Microsoft-Antispam:
+ BCL:0;ARA:13230040|5073199012|3072899012|69100299015|12012899012|32142699015|82310400026|2092899012|8096899003;
+X-Forefront-Antispam-Report:
+ CIP:54.240.197.235;CTRY:IE;LANG:en;SCL:-1;SRV:;IPV:CAL;SFV:NSPM;H:smtp.exodus.email.amazon.dev;PTR:54-240-197-235.amazon.com;CAT:NONE;SFS:(13230040)(5073199012)(3072899012)(69100299015)(12012899012)(32142699015)(82310400026)(2092899012)(8096899003);DIR:INB;
+X-MS-Exchange-CrossTenant-OriginalArrivalTime: 15 May 2025 07:42:21.7876
+ (UTC)
+X-MS-Exchange-CrossTenant-Network-Message-Id: f3720e4e-14ad-41f4-8334-08dd93840711
+X-MS-Exchange-CrossTenant-Id: 5280104a-472d-4538-9ccf-1e1d0efe8b1b
+X-MS-Exchange-CrossTenant-OriginalAttributedTenantConnectingIp: TenantId=5280104a-472d-4538-9ccf-1e1d0efe8b1b;Ip=[54.240.197.235];Helo=[smtp.exodus.email.amazon.dev]
+X-MS-Exchange-CrossTenant-AuthSource: EX19MTAEUC002.ant.amazon.com
+X-MS-Exchange-CrossTenant-AuthAs: Anonymous
+X-MS-Exchange-CrossTenant-FromEntityHeader: HybridOnPrem
+X-MS-Exchange-Transport-CrossTenantHeadersStamped: SA0PR18MB3534
+X-MS-Exchange-Organization-AuthSource: EX19MTAEUC002.ant.amazon.com
+X-MS-Exchange-Organization-AuthAs: Anonymous
+X-OriginatorOrg: amazon.onmicrosoft.com
+X-MS-Exchange-Transport-EndToEndLatency: 00:00:07.4860442
+X-MS-Exchange-Processed-By-BccFoldering: 15.20.8722.027
+X-Microsoft-Antispam-Mailbox-Delivery:
+	ucf:0;jmr:0;auth:0;dest:I;ENG:(910005)(944506478)(944626604)(4710137)(4717057)(4999163)(920097)(930097)(140003);
+X-Microsoft-Antispam-Message-Info:
+	=?us-ascii?Q?zfNo7+Tb00M8ka5pp1NL3F2PbDcVnK2+1Jr+kruFfuqx3oIO2ATD1e1u7eIc?=
+ =?us-ascii?Q?gbdQ9DHIh3N7PqALpuwcK7M0UiBvXoUnQtkgjlYhOc3bvd5+XJDnSQeH52wC?=
+ =?us-ascii?Q?IVF7AZfO5geLh5pGGmDzUFY4WiIuGO2b6gPqOfgswBgvfqY6Jz7g5ogsIkSH?=
+ =?us-ascii?Q?6JQqY3/NUaVoEvh5shiw6fx55iLY2cUdSfuf55vIXcwuxt4dHUXYrRcLiXgl?=
+ =?us-ascii?Q?6GGBoFAt7WZ1iopUNK1vi3soahL60Mrc6Ryn5JNQRghtjS7Wv7gwhtale3C1?=
+ =?us-ascii?Q?Xp1k+ZAPpJI8NDKp1ESs/e6yrgR3Tu4TOubTyk06FYGyg47Zmg6IVgQ8tCKV?=
+ =?us-ascii?Q?PihkuXyXDTiCj51+5U4riENrMtvYAHoF2pZ+aYNpi+PQNWGZuG2VE7DAoAeb?=
+ =?us-ascii?Q?HhVQarlgvkxXW2cZfrjozD7dbRdGD5LAIrtikior5FgOIMof8poh5GvU290w?=
+ =?us-ascii?Q?7RpjygGcaYX3o8CNjU6yI4+hGhF7mAaDJ1a123fI/OGaDsnXr4oD9jxvTsMS?=
+ =?us-ascii?Q?gzmaEAkgd3yOoGvY9pwYUYwd2PhoFteUWvxPMqBC9AWxjltwmH2QP+YMHSFq?=
+ =?us-ascii?Q?EQhj/Nl2qscR/f03usBh3VNIHKsBIoT5jaLvmt/Ce/huC6b3zUfAtMFhvGfq?=
+ =?us-ascii?Q?5mywwfimsNjs7YJ6CCk1BkOuJ33MUR3VGKZQSToFdfixnl0VwZ1rrLSBgm+T?=
+ =?us-ascii?Q?A2/OIC57TtBevQWAhSgpt/tGpsaN8ZVoOeTBpiSCqFqTeTlDtUq+d7uH2Zbr?=
+ =?us-ascii?Q?xRcWLUe4Oaduaaxo1qSSABsF0idILiP4306ya+tcrsrcjmhpHcq0d2l3BLGf?=
+ =?us-ascii?Q?RJBKkB9vcTfbpnKAVAQHT/ulOiqWtQcY8my0qjxMmgkS+Fu/1MYLB/AVjY2/?=
+ =?us-ascii?Q?2YEbQAh46EY/a4emZxi7IKEOdmXS6idpEmeyp5pIZ9Sm6quctGcKI7LjBYE2?=
+ =?us-ascii?Q?XVwamPImGbiEZphUkJC1pZaAnTRg+7rwN8SMhvcwS8pii6sWfk/On7H+eV/0?=
+ =?us-ascii?Q?ghSSuibuR2bGOJ2Z+k6kcJghQ8Jha3A14fzvU9e9rjwlyl1/nVSSqPIWqWLA?=
+ =?us-ascii?Q?JPH/pZgJ9y6WXoxL6vVc912TQebdvwQTSgIVLjL9gnZnys5PYM3Sz7iRUzZg?=
+ =?us-ascii?Q?ynzEAMrjpgg7V+qJI++lwzFZrBFf2QV/bkCTg7QZvvvTQ/5NejVRLulhykLR?=
+ =?us-ascii?Q?XRRyWwiT4qqJTTWjiOx2if3nBEE0kF6WS3ATuFbmVxNLVSlXRFjpluXJlzUf?=
+ =?us-ascii?Q?xhRsPiLqM6N728Of4q4Ui0tlK4r6jzZAG2qBVe6ZEp4+dPr578+6rXqufNMt?=
+ =?us-ascii?Q?MffDxXFBAfN6FHepxaujzmAw8Q33HjW8x4Kmh5KzGCcOwQYQE4UgWvypXsqE?=
+ =?us-ascii?Q?v+qIjmYQiPfa1hjfmlbL9PdargxZEinUZJB8Hd3bcK9N6mxjUc0h2TIClSxs?=
+ =?us-ascii?Q?v1wIiZ7tGVwsnhBZbgeJYtQf45TQ3ETdAtJ2g8cLYC2H+pq64xLDaIvraxWB?=
+ =?us-ascii?Q?uieX97Ih7us+em6GqDxe/Bd005n3DagCZIXyCiwnGqcg4W3PJqD85424D/Bd?=
+ =?us-ascii?Q?aZ4ZFbCaXpWv3ctbLbl9AqW1W1iDaxNNCAtOJzqAOrk3LmX+sXDZRMorLhAP?=
+ =?us-ascii?Q?eAIzhRlrO/LnxbA0HI3lpdlb6hGo/q2a2gn4oOmpxrmQAeOC8RIdWWE+1B8w?=
+ =?us-ascii?Q?6y3SKe+gJ5pRDyTgT8Y6OInjWIYfzrlhFsQ7YdjMnyBc5fj4xy2IuH+DzUYO?=
+ =?us-ascii?Q?FU9JXIVJ41xfGIU+VxPiFTCKjutgKaBYE23l4CykUcabvS3MveWv6ueakgAh?=
+ =?us-ascii?Q?ZgZQmw3kpNTVaKasQSlDUD75276UKoyIehuLCaE8sXg3J/GnrXeU+9hvH1MX?=
+ =?us-ascii?Q?z59DgOH+qwdGSxWrRczYlijU6F2ZK8/2chiSVXKGTBOYOuqnxyfwNU8w46Ij?=
+ =?us-ascii?Q?OR6wAlJpZMMY9MLwps+GwDEFedg/eo++/zAaIFK8x/He1rDtoatkT59K+2to?=
+ =?us-ascii?Q?RZ8Y6+O2eEk0qw2SYCyxEAKitddbSPxkDUs1dOOzQ/6NoGZ7qpIqmT27CQT1?=
+ =?us-ascii?Q?ep+hjChCEjvHYTe04m6mY7UYtEXl2QzMIogKGl9zTs20bmbbrtvFfc1yfC/n?=
+ =?us-ascii?Q?7AqhT1l6qDiuGdkLbkP1WXwdf+gIjx00HuAd8NgUCMDOuD8//+JVrKzJt4qn?=
+ =?us-ascii?Q?aYsoGM6GkghpCPm3NmxukbM6IvnEpbDvxGWvlgY3gHzEqWow+bCuKng1/aQ+?=
+ =?us-ascii?Q?r9UpKM/2mGLWVpzMtP/OzELsu2TJSzXU74f7Q9BpOSNQ7dvchEvAsmrRGg3P?=
+ =?us-ascii?Q?e0N4zgYdH79Yp6RE3w9fP5VLBel7Bph7MVmsbCHno4VacmGBCZR+IGH7QX1u?=
+ =?us-ascii?Q?dA75x+p3dy13IU6wSjzgqdP7J9/Io11qVLLF0h8aoxhVB7kQ/UoVCIrEVr9M?=
+ =?us-ascii?Q?Df0aOLM37aa9D8wB4KvhRT8t+KvUW3o0hLseRx3dScfm3wGY1Yv6ixAEbLGG?=
+ =?us-ascii?Q?d5Ed+Y/rSdUoXzoh2Dsw3oOK+pDLX9BjrnprnAdeVQRA3dYq4YYtaIlh/+tl?=
+ =?us-ascii?Q?DV15DvWiVBA0ZroRbqMnN9IpiuMit3xVcgMOqGSyQrqNgZ8zcrqs2/gBkyBj?=
+ =?us-ascii?Q?gcq2oJk5RcdCft/ezgsz4B27u81dfKV81KsPMfqCcjbmeW4KpyoZ2PzshjvF?=
+ =?us-ascii?Q?g9ILasxPNwsNsjbSJnJifQ5OQtH/1a0+5dOguaVSokqXTj5SEJX+y+AWVp14?=
+ =?us-ascii?Q?RrhlI/YCpy++BNRWl5woOARl0uJOX9Pe9XXnxQQ8vlFuUhVldav4usKzy+Yh?=
+ =?us-ascii?Q?CukT6X46THZghIZI/Jf/VCo/Cb3v6oo0dP7vaxNn6OnP3fpzbxz504EZUwAQ?=
+ =?us-ascii?Q?PtA8wbHaNYjjy4ba5Bs00kMO18w0BZ5n6SafMP6SvZvQk/qBbUaQIbCGstAu?=
+ =?us-ascii?Q?D/l+N4RD56y7oyL4R4jdCW438TNU8t/xR0A44zKCnx3ugtfhW0NTMn5+Uh9U?=
+ =?us-ascii?Q?sOCZG3/FT9uKFZOYpGlT6RojEWV9HN4KL3NJE9Z3fy3Iimy6L3XlLQxPoFIe?=
+ =?us-ascii?Q?52RNIRroU0mgTiGWesI3eo6G7hLrMFmJ2OlwyHbcGTcg0R4PEW+1rIdzuRkg?=
+ =?us-ascii?Q?5lVheOyqUTyy7Q9tPt2VHDgeG5sQfSLqaMZIB0OI8d6kfDa2yFfRRpqPdGGp?=
+ =?us-ascii?Q?3Av/maPMjWA5OWhE2cAZO/DJUx28LxW8YD3pRPCjvDKKmCwCIFEy8cwTVj5I?=
+ =?us-ascii?Q?Kkhm3fQGY8Meobou9XOdQswZVChj5KKyFUhgpDW6LN4278YeONxcGYF3vqtf?=
+ =?us-ascii?Q?7YaSDv2ZeokanysmlpCwzm1qPhnVUhYC1AmFBhD3e2z+nYB2mAIR7S6WT3pd?=
+ =?us-ascii?Q?F/HWyKk=3D?=
+Content-type: multipart/alternative;
+	boundary="B_3854271553_2454896160"
+
+> This message is in MIME format. Since your mail reader does not understand
+this format, some or all of this message may not be legible.
+
+--B_3854271553_2454896160
+Content-type: text/plain;
+	charset="UTF-8"
+Content-transfer-encoding: quoted-printable
+
+Shout-Outs
+Hi Marius Ionut! Sneha Rao sent Alexandru Simion a Shout-Out and wants you =
+to know.
+I'd like to give a special shout-out to Alex for going above and beyond! No=
+t only did he help me resolve my Outlook archive issues, but they also took =
+the time to explain the process, making sure I understood how to handle simi=
+lar situations in the future. Their patience and expertise made what could h=
+ave been a frustrating experience into a great learning opportunity. Thank y=
+ou for providing such excellent support and making technology less intimidat=
+ing! Your help has made me more efficient in my daily work. =F0=9F=91=8F=F0=9F=92=ABOwnershi=
+p, Hire and Develop the Best, Invent and SimplifyComment or like this Shout-=
+Out
+Amazon Shout-Outs TeamPlease note that this email is for informational purp=
+oses only and is not intended for reply. This message has been generated aut=
+omatically and any response to it will not be read or received. 
+
+--B_3854271553_2454896160
+Content-type: text/html;
+	charset="UTF-8"
+Content-transfer-encoding: quoted-printable
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.=
+w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html dir=3D"ltr" lang=3D"en-US"><=
+head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-8"><meta na=
+me=3D"x-apple-disable-message-reformatting"><title>Shout-Out Delivered Single =
+Tagged User</title><meta name=3D"color-scheme" content=3D"light dark"><meta name=
+=3D"supported-color-schemes" content=3D"light dark"><style>
+    @font-face {
+      font-family: 'Amazon Ember';
+      font-style: normal;
+      font-weight: 400;
+      mso-font-alt: 'Arial';
+      src: url(https://fonts.cdnfonts.com/css/amazon-ember) format('woff2')=
+;
+    }
+
+    * {
+      font-family: 'Amazon Ember', Arial, Helvetica;
+    }
+  </style></head><body style=3D"margin:0;padding:0;-webkit-text-size-adjust:1=
+00%;-ms-text-size-adjust:100%;word-spacing:normal;mso-line-height-rule:exact=
+ly"><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacin=
+g=3D"0" role=3D"presentation" style=3D"max-width:600px;margin:0 auto"><tbody><tr s=
+tyle=3D"width:100%"><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadd=
+ing=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"background-color:#ffffff;=
+background:#ffffff"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td dat=
+a-id=3D"__react-email-column" style=3D"align-items:left;text-align:left;justify-=
+content:left;align:left;display:block;margin-left:20px"><p style=3D"font-size:=
+18px;line-height:24px;margin:16px 0;float:left;justify-content:left;align:le=
+ft;mso-element-left:left;font-family:Amazon Ember,Arial,sans-serif;font-weig=
+ht:600;color:#000000;align-items:left;text-align:left">Shout-Outs</p></td><t=
+d data-id=3D"__react-email-column" style=3D"align-items:right;text-align:right;j=
+ustify-content:right;align:right;display:block;margin-right:20px;margin-top:=
+15px"><img alt=3D"Amazon A to Z" height=3D"auto" src=3D"https://atoz-kudos-app.ama=
+zon.work/images/AtoZLogo.png" style=3D"display:block;outline:none;border:none;=
+text-decoration:none;width:74px;height:auto;margin:auto;overflow:hidden;just=
+ify-content:right;float:right;align:right;align-items:right;text-align:right=
+;mso-element-left:right" width=3D"74"></td></tr></tbody></table><table align=3D"=
+center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presen=
+tation" style=3D"background:#D7EBFB;background-color:#D7EBFB"><tbody><tr><td><=
+table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ role=3D"presentation" style=3D"background:#D7EBFB;background-color:#D7EBFB"><tb=
+ody><tr><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" ce=
+llspacing=3D"0" role=3D"presentation" style=3D"background:#D7EBFB;background-color=
+:#D7EBFB"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__re=
+act-email-column" style=3D"align-items:left;text-align:left;justify-content:le=
+ft;align:left;display:block;margin-left:0"><img src=3D"https://atoz-kudos-app.=
+amazon.work/images/Flag_L1x.png" style=3D"display:block;outline:none;border:no=
+ne;text-decoration:none;float:left;justify-content:left;align:left;mso-eleme=
+nt-left:left;align-items:left;text-align:left"></td><td data-id=3D"__react-ema=
+il-column" style=3D"align-items:right;text-align:right;justify-content:right;a=
+lign:right;display:block;margin-right:0"><img src=3D"https://atoz-kudos-app.am=
+azon.work/images/Flag_R1x.png" style=3D"display:block;outline:none;border:none=
+;text-decoration:none;margin:auto;overflow:hidden;justify-content:right;floa=
+t:right;align:right;align-items:right;text-align:right;mso-element-left:righ=
+t"></td></tr></tbody></table></td></tr></tbody></table><table align=3D"center"=
+ width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"=
+ style=3D"background:#D7EBFB;background-color:#D7EBFB;text-align:center"><tbod=
+y><tr><td><img height=3D"150px" src=3D"https://atoz-kudos-app.amazon.work/images=
+/pins/300x300/300x300_Pin_Helping%20Hand_Activated.png" style=3D"display:block=
+;outline:none;border:none;text-decoration:none;margin:auto" width=3D"150px"><p=
+ style=3D"font-size:28px;line-height:1.5;margin:16px 0;font-family:&quot;Amazo=
+n Ember&quot;, Arial, sans-serif;margin-left:25px;margin-right:25px;font-wei=
+ght:700;color:#000000;text-align:center;margin-bottom:20px">Hi Marius Ionut!=
+ Sneha Rao sent Alexandru Simion a Shout-Out and wants you to know.</p></td>=
+</tr></tbody></table></td></tr></tbody></table><table align=3D"center" width=3D"=
+100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"=
+padding:20px 40px;justify-content:center;align-items:center;text-align:cente=
+r"><tbody><tr><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D=
+"0" cellspacing=3D"0" role=3D"presentation" style=3D"max-width:37.5em"><tbody><tr =
+style=3D"width:100%"><td><p style=3D"font-size:14px;line-height:24px;margin:16px=
+ 0"></p><p style=3D"font-size:18px;line-height:32px;margin:20px 0;font-family:=
+&quot;Amazon Ember&quot;, Arial, sans-serif;font-weight:400;font-style:itali=
+c;color:#232F3E;text-align:center;display:inline">I'd like to give a special=
+ shout-out to Alex for going above and beyond! Not only did he help me resol=
+ve my Outlook archive issues, but they also took the time to explain the pro=
+cess, making sure I understood how to handle similar situations in the futur=
+e. Their patience and expertise made what could have been a frustrating expe=
+rience into a great learning opportunity. Thank you for providing such excel=
+lent support and making technology less intimidating! Your help has made me =
+more efficient in my daily work. =F0=9F=91=8F=F0=9F=92=AB</p><p style=3D"font-size:16px;line-h=
+eight:32px;margin:20px 0;font-family:&quot;Amazon Ember&quot;, Arial, sans-s=
+erif;font-weight:700;color:#232F3E;text-align:center;display:inline">Ownersh=
+ip, Hire and Develop the Best, Invent and Simplify</p><p></p></td></tr></tbo=
+dy></table><style>
+          @media screen {
+            .cta-button {
+              background: #1768c9;
+              border-radius: 60px;
+              color: #ffffff;
+              display: inline-block;
+              font-family: &quot;Amazon Ember&quot;, Arial, sans-serif;
+              font-size: 16px;
+              font-weight: 400;
+              line-height: 50px;
+              text-align: center;
+              text-decoration: none;
+            }
+          }
+        </style><a href=3D"https://atoz.amazon.work/m/t/5VDXnHo" class=3D"cta-b=
+utton" style=3D"line-height:150%;text-decoration:none;display:inline-block;max=
+-width:100%;width:auto;min-width:161px;height:auto;font-size:16px;font-famil=
+y:&quot;Amazon Ember&quot;, Arial, sans-serif;font-weight:500;padding:12px 1=
+2px 12px 12px;border-radius:60px;text-align:center;mso-line-height-rule:exac=
+tly;word-wrap:break-word" target=3D"_blank"><span><!--[if mso]><i style=3D"lette=
+r-spacing: 12px;mso-font-width:-100%;mso-text-raise:18" hidden>&nbsp;</i><![=
+endif]--></span><span style=3D"max-width:100%;display:inline-block;line-height=
+:120%;mso-padding-alt:0px;mso-text-raise:9px">Comment or like this Shout-Out=
+</span><span><!--[if mso]><i style=3D"letter-spacing: 12px;mso-font-width:-100=
+%" hidden>&nbsp;</i><![endif]--></span></a></td></tr></tbody></table><table =
+align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D=
+"presentation" style=3D"background:#D7EBFB;background-color:#D7EBFB"><tbody><t=
+r><td><img src=3D"https://atoz-kudos-app.amazon.work/images/People1x.png" styl=
+e=3D"display:block;outline:none;border:none;text-decoration:none;margin-top:0p=
+x"></td></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" c=
+ellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"background:#FFFFFF=
+;background-color:#FFFFFF;width:100%;padding:20px 40px;justify-content:cente=
+r;align-items:center;text-align:center"><tbody><tr><td><p style=3D"font-size:1=
+6px;line-height:119%;margin:16px 0;font-family:Amazon Ember,Arial,sans-serif=
+;font-weight:400;color:#777777;text-align:center">Amazon Shout-Outs Team</p>=
+<p style=3D"font-size:12px;line-height:1.5;margin:16px 0;font-family:Amazon Em=
+ber,Arial,sans-serif;font-weight:400;color:#56616C;text-align:center;display=
+:inline-block;word-wrap:break-word">Please note that this email is for infor=
+mational purposes only and is not intended for reply. This message has been =
+generated automatically and any response to it will not be read or received.=
+</p></td></tr></tbody></table></td></tr></tbody></table><img alt=3D"" src=3D"htt=
+ps://ldde7chj.r.us-west-2.awstrack.me/I0/01010196d2e4251a-52529533-10a6-4929=
+-a397-6cdd6a7416a8-000000/c14_qVCjunc-a-RPuRskZKOHNg4=3D427" style=3D"display: n=
+one; width: 1px; height: 1px;"> </body></html>
+
+--B_3854271553_2454896160--
+

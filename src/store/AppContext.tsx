@@ -1,67 +1,143 @@
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { AppState, STARREntry, Metric, Project, FeedbackEntry, Goal, UserProfile } from '../types';
+import React, { createContext, useContext, useReducer, useEffect, useRef, ReactNode } from 'react';
+import { AppState, STAREntry, Metric, UserProfile, ActivityLogEntry, DimensionAnalysis } from '../types';
 import { loadState, saveState } from './storage';
+import { saveUserData } from '../utils/userDataApi';
+
+function logEntry(action: string, detail: string): ActivityLogEntry {
+  return { timestamp: new Date().toISOString(), action, detail };
+}
 
 type Action =
   | { type: 'SET_PROFILE'; payload: UserProfile }
-  | { type: 'ADD_STARR'; payload: STARREntry }
-  | { type: 'UPDATE_STARR'; payload: STARREntry }
-  | { type: 'DELETE_STARR'; payload: string }
+  | { type: 'ADD_STAR'; payload: STAREntry }
+  | { type: 'UPDATE_STAR'; payload: STAREntry }
+  | { type: 'DELETE_STAR'; payload: string }
   | { type: 'ADD_METRIC'; payload: Metric }
   | { type: 'DELETE_METRIC'; payload: string }
   | { type: 'IMPORT_METRICS'; payload: Metric[] }
-  | { type: 'ADD_PROJECT'; payload: Project }
-  | { type: 'UPDATE_PROJECT'; payload: Project }
-  | { type: 'DELETE_PROJECT'; payload: string }
-  | { type: 'ADD_FEEDBACK'; payload: FeedbackEntry }
-  | { type: 'DELETE_FEEDBACK'; payload: string }
-  | { type: 'ADD_GOAL'; payload: Goal }
-  | { type: 'UPDATE_GOAL'; payload: Goal }
-  | { type: 'DELETE_GOAL'; payload: string }
   | { type: 'SET_SCOPE_OF_ROLE'; payload: string }
   | { type: 'SET_BEST_REASONS'; payload: string }
   | { type: 'SET_ADDITIONAL_INFO'; payload: string }
-  | { type: 'LOAD_STATE'; payload: AppState };
+  | { type: 'LOAD_STATE'; payload: AppState }
+  | { type: 'RESET_STATE'; payload: AppState }
+  | { type: 'SET_DIMENSION_ANALYSIS'; payload: DimensionAnalysis };
 
 function reducer(state: AppState, action: Action): AppState {
+  const log = state.activityLog || [];
+  let next: AppState;
+  let entry: ActivityLogEntry | null = null;
+
   switch (action.type) {
-    case 'SET_PROFILE': return { ...state, profile: action.payload };
-    case 'ADD_STARR': return { ...state, starr: [...state.starr, action.payload] };
-    case 'UPDATE_STARR': return { ...state, starr: state.starr.map(s => s.id === action.payload.id ? action.payload : s) };
-    case 'DELETE_STARR': return { ...state, starr: state.starr.filter(s => s.id !== action.payload) };
-    case 'ADD_METRIC': return { ...state, metrics: [...state.metrics, action.payload] };
-    case 'DELETE_METRIC': return { ...state, metrics: state.metrics.filter(m => m.id !== action.payload) };
-    case 'IMPORT_METRICS': return { ...state, metrics: [...state.metrics, ...action.payload] };
-    case 'ADD_PROJECT': return { ...state, projects: [...state.projects, action.payload] };
-    case 'UPDATE_PROJECT': return { ...state, projects: state.projects.map(p => p.id === action.payload.id ? action.payload : p) };
-    case 'DELETE_PROJECT': return { ...state, projects: state.projects.filter(p => p.id !== action.payload) };
-    case 'ADD_FEEDBACK': return { ...state, feedback: [...state.feedback, action.payload] };
-    case 'DELETE_FEEDBACK': return { ...state, feedback: state.feedback.filter(f => f.id !== action.payload) };
-    case 'ADD_GOAL': return { ...state, goals: [...state.goals, action.payload] };
-    case 'UPDATE_GOAL': return { ...state, goals: state.goals.map(g => g.id === action.payload.id ? action.payload : g) };
-    case 'DELETE_GOAL': return { ...state, goals: state.goals.filter(g => g.id !== action.payload) };
-    case 'SET_SCOPE_OF_ROLE': return { ...state, scopeOfRole: action.payload };
-    case 'SET_BEST_REASONS': return { ...state, bestReasonsNotToPromote: action.payload };
-    case 'SET_ADDITIONAL_INFO': return { ...state, additionalInfo: action.payload };
-    case 'LOAD_STATE': return action.payload;
-    default: return state;
+    case 'SET_PROFILE':
+      entry = logEntry('Profile Updated', `Updated profile information`);
+      next = { ...state, profile: action.payload };
+      break;
+    case 'ADD_STAR':
+      entry = logEntry('STAR Added', `Added "${action.payload.title}"`);
+      next = { ...state, star: [...state.star, action.payload] };
+      break;
+    case 'UPDATE_STAR': {
+      const old = state.star.find(s => s.id === action.payload.id);
+      const hasNewComments = (action.payload.reviewComments?.length || 0) > (old?.reviewComments?.length || 0);
+      entry = logEntry(
+        hasNewComments ? 'Review Comments Imported' : 'STAR Updated',
+        hasNewComments ? `Imported comments for "${action.payload.title}"` : `Updated "${action.payload.title}"`
+      );
+      next = { ...state, star: state.star.map(s => s.id === action.payload.id ? action.payload : s) };
+      break;
+    }
+    case 'DELETE_STAR': {
+      const deleted = state.star.find(s => s.id === action.payload);
+      entry = logEntry('STAR Deleted', `Deleted "${deleted?.title || 'entry'}"`);
+      next = { ...state, star: state.star.filter(s => s.id !== action.payload) };
+      break;
+    }
+    case 'ADD_METRIC':
+      entry = logEntry('Metric Added', `Added ${action.payload.type} metric`);
+      next = { ...state, metrics: [...state.metrics, action.payload] };
+      break;
+    case 'DELETE_METRIC':
+      entry = logEntry('Metric Deleted', `Removed a metric`);
+      next = { ...state, metrics: state.metrics.filter(m => m.id !== action.payload) };
+      break;
+    case 'IMPORT_METRICS':
+      entry = logEntry('Metrics Imported', `Imported ${action.payload.length} metrics`);
+      next = { ...state, metrics: [...state.metrics, ...action.payload] };
+      break;
+    case 'SET_SCOPE_OF_ROLE':
+      entry = logEntry('Scope of Role Updated', `Updated scope of role narrative`);
+      next = { ...state, scopeOfRole: action.payload };
+      break;
+    case 'SET_BEST_REASONS':
+      entry = logEntry('Best Reasons Updated', `Updated best reasons not to promote`);
+      next = { ...state, bestReasonsNotToPromote: action.payload };
+      break;
+    case 'SET_ADDITIONAL_INFO':
+      entry = logEntry('Additional Info Updated', `Updated additional information`);
+      next = { ...state, additionalInfo: action.payload };
+      break;
+    case 'LOAD_STATE':
+      entry = logEntry('Portfolio Imported', `Loaded portfolio data`);
+      next = action.payload;
+      break;
+    case 'RESET_STATE':
+      return { ...action.payload, activityLog: [] };
+    case 'SET_DIMENSION_ANALYSIS':
+      next = { ...state, dimensionAnalysis: action.payload };
+      break;
+    default:
+      return state;
   }
+
+  return { ...next, activityLog: [...(next.activityLog || log), ...(entry ? [entry] : [])] };
 }
 
-const AppContext = createContext<{ state: AppState; dispatch: React.Dispatch<Action> } | null>(null);
+interface AppContextValue {
+  state: AppState;
+  dispatch: React.Dispatch<Action>;
+  userId: string | null;
+}
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, loadState());
+const AppContext = createContext<AppContextValue | null>(null);
 
-  useEffect(() => { saveState(state); }, [state]);
+export function AppProvider({ children, initialState, userId }: {
+  children: ReactNode;
+  initialState?: AppState;
+  userId?: string | null;
+}) {
+  const [state, dispatch] = useReducer(reducer, initialState || loadState());
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Auto-save reminder every 5 minutes
+  // Persist to localStorage on every state change (fallback)
   useEffect(() => {
-    const interval = setInterval(() => { saveState(state); }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    saveState(state);
   }, [state]);
 
-  return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
+  // Debounced cloud save when userId is present
+  useEffect(() => {
+    if (!userId) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveUserData(userId, stateRef.current).catch(() => {});
+    }, 2000);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [state, userId]);
+
+  // Auto-save every 5 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      saveState(stateRef.current);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <AppContext.Provider value={{ state, dispatch, userId: userId || null }}>
+      {children}
+    </AppContext.Provider>
+  );
 }
 
 export function useApp() {

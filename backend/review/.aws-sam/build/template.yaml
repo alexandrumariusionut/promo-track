@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Promo Track - Review System API
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+    - arm64
+    Timeout: 10
+    MemorySize: 128
+    Environment:
+      Variables:
+        TABLE_NAME:
+          Ref: ReviewsTable
+Resources:
+  ReviewApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+        - '*'
+        AllowMethods:
+        - GET
+        - POST
+        - OPTIONS
+        AllowHeaders:
+        - Content-Type
+  ReviewsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: promo-track-reviews
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: sessionId
+        AttributeType: S
+      KeySchema:
+      - AttributeName: sessionId
+        KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+  CreateReviewFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: create.handler
+      CodeUri: CreateReviewFunction
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: ReviewApi
+            Path: /reviews
+            Method: POST
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: ReviewsTable
+    Metadata:
+      SamResourceId: CreateReviewFunction
+  GetReviewFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: get.handler
+      CodeUri: GetReviewFunction
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: ReviewApi
+            Path: /reviews/{sessionId}
+            Method: GET
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:GetItem
+          Resource:
+            Fn::GetAtt:
+            - ReviewsTable
+            - Arn
+    Metadata:
+      SamResourceId: GetReviewFunction
+  SubmitCommentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: comments.handler
+      CodeUri: SubmitCommentsFunction
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: ReviewApi
+            Path: /reviews/{sessionId}/comments
+            Method: POST
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:UpdateItem
+          Resource:
+            Fn::GetAtt:
+            - ReviewsTable
+            - Arn
+    Metadata:
+      SamResourceId: SubmitCommentsFunction
+  CheckStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: status.handler
+      CodeUri: CheckStatusFunction
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: ReviewApi
+            Path: /reviews/{sessionId}/status
+            Method: GET
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:GetItem
+          Resource:
+            Fn::GetAtt:
+            - ReviewsTable
+            - Arn
+    Metadata:
+      SamResourceId: CheckStatusFunction
+Outputs:
+  ApiUrl:
+    Description: Review API endpoint
+    Value:
+      Fn::Sub: https://${ReviewApi}.execute-api.${AWS::Region}.amazonaws.com/prod

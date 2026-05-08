@@ -1,142 +1,190 @@
-import { Box, Grid, Paper, Typography, Chip, Card, CardContent, LinearProgress, List, ListItem, ListItemIcon, ListItemText } from '@mui/material';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { CheckCircle, RadioButtonUnchecked } from '@mui/icons-material';
+import { useState } from 'react';
+import { Box, Grid, Paper, Typography, Chip, LinearProgress, List, ListItem, ListItemIcon, ListItemText, TextField, Collapse, IconButton, Button, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { CheckCircle, RadioButtonUnchecked, PlayCircleOutline, ExpandMore, ExpandLess, Timeline } from '@mui/icons-material';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import { useApp } from '../store/AppContext';
 import { lpCoverage } from '../utils/helpers';
-import { LEADERSHIP_PRINCIPLES, LeadershipPrinciple, Metric } from '../types';
+import { LEADERSHIP_PRINCIPLES, LeadershipPrinciple, Metric, AppState } from '../types';
+import TimelinePage from './TimelinePage';
 
-import PageTip from '../components/PageTip';
-
-const COLORS = ['#1976d2', '#388e3c', '#f57c00', '#d32f2f', '#7b1fa2', '#0097a7', '#689f38', '#fbc02d',
-  '#e64a19', '#5d4037', '#455a64', '#c2185b', '#00838f', '#558b2f', '#ff6f00', '#4527a0'];
+dayjs.extend(relativeTime);
 
 export default function DashboardPage() {
   const { state } = useApp();
-  const coverage = lpCoverage(state.starr);
-
-  const lpData = LEADERSHIP_PRINCIPLES.map((lp: LeadershipPrinciple, i: number) => ({
-    name: lp.length > 20 ? lp.substring(0, 18) + '…' : lp,
-    fullName: lp,
-    count: coverage[lp],
-    fill: COLORS[i % COLORS.length],
-  }));
-
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const coverage = lpCoverage(state.star);
   const coveredCount = Object.values(coverage).filter((v: number) => v > 0).length;
 
-  const stats = [
-    { label: 'STARR Entries', value: state.starr.length, color: '#1976d2' },
-    { label: 'LPs Covered', value: `${coveredCount}/16`, color: '#388e3c' },
-    { label: 'Feedback', value: state.feedback.length, color: '#7b1fa2' },
-    { label: 'Metrics', value: state.metrics.length, color: '#d32f2f' },
-  ];
+  const maxCount = Math.max(...Object.values(coverage), 3);
+  const radarData = LEADERSHIP_PRINCIPLES.map((lp: LeadershipPrinciple) => ({
+    lp: lp.split(' ').slice(0, 3).join(' '),
+    count: coverage[lp],
+    fullMark: maxCount,
+  }));
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
-        {state.profile.name ? `Welcome, ${state.profile.name}` : 'Welcome to PromoTrack'}
-      </Typography>
-      {state.profile.level && (
-        <Chip label={`${state.profile.level} → ${state.profile.targetLevel}`} color="primary" sx={{ mb: 3 }} />
-      )}
+      {/* Welcome Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          {state.profile.name ? `Welcome, ${state.profile.name}` : 'Welcome to Promo Tracker'}
+        </Typography>
+      </Box>
 
-      <PageTip id="dashboard" title="Dashboard Overview">
-        This is your portfolio command center. Track your progress across all sections, see which Leadership Principles you've demonstrated, and identify gaps before generating your promotion document.
-      </PageTip>
+      {/* App Walkthrough Video */}
+      <Paper sx={{ mb: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1.5, cursor: 'pointer', bgcolor: 'primary.main', color: 'white' }}
+          onClick={() => setVideoOpen(v => !v)}
+        >
+          <PlayCircleOutline sx={{ mr: 1 }} />
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>PromoTrack App Walkthrough</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.85 }}>Watch a quick demo on how to use the app to build your promotion portfolio</Typography>
+          </Box>
+          <IconButton size="small" sx={{ color: 'white' }}>
+            {videoOpen ? <ExpandLess /> : <ExpandMore />}
+          </IconButton>
+        </Box>
+        <Collapse in={videoOpen}>
+          <Box sx={{ p: 3, textAlign: 'center', bgcolor: 'background.default' }}>
+            <video src="/walkthrough.mov" controls style={{ width: '100%', maxWidth: 800, borderRadius: 8 }} />
+          </Box>
+        </Collapse>
+      </Paper>
 
-      {/* Stats Cards */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        {stats.map(s => (
-          <Grid size={{ xs: 6, sm: 4, md: 2 }} key={s.label}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: s.color }}>{s.value}</Typography>
-                <Typography variant="body2" color="text.secondary">{s.label}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Portfolio Completion Tracker */}
-      <PortfolioTracker state={state} coveredCount={coveredCount} />
-
-      <Grid container spacing={3}>
-        {/* LP Coverage Chart — full width */}
-        <Grid size={{ xs: 12 }}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Leadership Principle Coverage</Typography>
-            {state.starr.length === 0 ? (
+      {/* Two-column: LP Radar + Portfolio Tracker */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid size={{ xs: 12, md: 7 }}>
+          <Paper sx={{ p: 3, height: '100%' }}>
+            <Typography variant="h6" gutterBottom>LP Coverage</Typography>
+            {state.star.length === 0 ? (
               <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                Add STARR entries to see LP coverage
+                Add STAR entries to see LP coverage
               </Typography>
             ) : (
               <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={lpData} margin={{ bottom: 80 }}>
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} fontSize={10} />
-                  <YAxis allowDecimals={false} />
+                <RadarChart data={radarData}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="lp" fontSize={10} />
+                  <PolarRadiusAxis allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="count" name="Entries">
-                    {lpData.map((_entry: typeof lpData[0], i: number) => <Cell key={i} fill={_entry.fill} />)}
-                  </Bar>
-                </BarChart>
+                  <Radar dataKey="count" fill="#1976d2" fillOpacity={0.3} stroke="#1976d2" />
+                </RadarChart>
               </ResponsiveContainer>
             )}
-          </Paper>
-        </Grid>
-
-        {/* LP Gap Analysis */}
-        <Grid size={{ xs: 12 }}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>LP Coverage Details</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {LEADERSHIP_PRINCIPLES.filter((lp: LeadershipPrinciple) => coverage[lp] === 0).map((lp: LeadershipPrinciple) => (
-                <Chip key={lp} label={lp} color="default" variant="outlined" />
-              ))}
-              {LEADERSHIP_PRINCIPLES.filter((lp: LeadershipPrinciple) => coverage[lp] === 1).map((lp: LeadershipPrinciple) => (
-                <Chip key={lp} label={`${lp} (1)`} color="primary" variant="outlined" />
-              ))}
-              {LEADERSHIP_PRINCIPLES.filter((lp: LeadershipPrinciple) => coverage[lp] >= 2).map((lp: LeadershipPrinciple) => (
-                <Chip key={lp} label={`${lp} (${coverage[lp]})`} color="success" />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+              {LEADERSHIP_PRINCIPLES.map((lp: LeadershipPrinciple) => (
+                <Chip
+                  key={lp}
+                  label={lp}
+                  size="small"
+                  variant={coverage[lp] > 0 ? 'filled' : 'outlined'}
+                  color={coverage[lp] > 0 ? 'success' : 'default'}
+                />
               ))}
             </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              You don't need to cover all 16 LPs — focus on the ones most relevant to your promotion case.
-            </Typography>
           </Paper>
         </Grid>
+        <Grid size={{ xs: 12, md: 5 }}>
+          <PortfolioTracker state={state} coveredCount={coveredCount} />
+        </Grid>
       </Grid>
+
+      {/* Timeline */}
+      <Button variant="outlined" startIcon={<Timeline />} onClick={() => setTimelineOpen(true)} sx={{ mt: 2 }}>
+        View Timeline
+      </Button>
+      <Dialog open={timelineOpen} onClose={() => setTimelineOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Timeline
+          <IconButton onClick={() => setTimelineOpen(false)} size="small"><ExpandLess /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ minHeight: 400 }}>
+          <TimelinePage />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
 
-function PortfolioTracker({ state, coveredCount }: { state: any; coveredCount: number }) {
+function PortfolioTracker({ state, coveredCount }: { state: AppState; coveredCount: number }) {
+  const { dispatch } = useApp();
+  const [editingDate, setEditingDate] = useState(false);
   const p = state.profile;
+
+  const targetDate = p.targetPromotionDate;
+  const daysLeft = targetDate ? dayjs(targetDate).diff(dayjs(), 'day') : null;
+
   const sections = [
     { label: 'Profile completed', done: !!(p.name && p.role && p.manager && p.level), detail: p.name ? `${p.name} — ${p.role}` : 'Name, role, manager required' },
     { label: 'Management chain filled', done: !!(p.steamMember && p.steamDirect && p.promotionApprover), detail: p.promotionApprover ? `Approver: ${p.promotionApprover}` : 'Steam Member, Steam Direct, Approver' },
     { label: 'Scope of Role written', done: !!(state.scopeOfRole && state.scopeOfRole.length > 50), detail: state.scopeOfRole ? `${state.scopeOfRole.split(/\s+/).filter(Boolean).length} words` : 'Not started' },
-    { label: 'STARR entries added', done: state.starr.length >= 3, detail: `${state.starr.length} entries (aim for 3+)` },
-    { label: 'Leadership Principles demonstrated', done: coveredCount >= 4, detail: `${coveredCount}/16 LPs covered — focus on key ones` },
+    { label: 'STAR entries added', done: state.star.length >= 3, detail: `${state.star.length} entries` },
+    { label: 'Leadership Principles demonstrated', done: coveredCount >= 4, detail: `${coveredCount}/16 LPs covered` },
     { label: 'Metrics imported', done: state.metrics.length > 0, detail: state.metrics.length > 0 ? `${state.metrics.filter((m: Metric) => m.channel !== 'Benchmark').length} personal metrics` : 'Import from PDF or add manually' },
-    { label: 'Feedback collected', done: state.feedback.length >= 2, detail: `${state.feedback.length} entries (aim for 2+)` },
     { label: 'Best Reasons Not to Promote', done: !!(state.bestReasonsNotToPromote && state.bestReasonsNotToPromote.length > 50), detail: state.bestReasonsNotToPromote ? `${state.bestReasonsNotToPromote.split(/\s+/).filter(Boolean).length} words` : 'Not started' },
   ];
 
   const doneCount = sections.filter(s => s.done).length;
   const pct = Math.round((doneCount / sections.length) * 100);
 
+  const handleDateChange = (newDate: string) => {
+    dispatch({ type: 'SET_PROFILE', payload: { ...p, targetPromotionDate: newDate } });
+    setEditingDate(false);
+  };
+
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
+    <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
         <Typography variant="h6">Portfolio Completion</Typography>
-        <Chip label={`${doneCount}/${sections.length} sections`} color={pct === 100 ? 'success' : pct >= 50 ? 'primary' : 'warning'} />
+        <Chip label={`${doneCount}/${sections.length}`} color={pct === 100 ? 'success' : pct >= 50 ? 'primary' : 'warning'} size="small" />
       </Box>
-      <LinearProgress variant="determinate" value={pct} sx={{ height: 10, borderRadius: 5, mb: 2 }} />
-      <List dense disablePadding>
+      <LinearProgress variant="determinate" value={pct} sx={{ height: 8, borderRadius: 4, mb: 2 }} />
+
+      {/* Promotion Countdown */}
+      <Box
+        sx={{
+          textAlign: 'center', py: 1.5, mb: 2, borderRadius: 2,
+          bgcolor: 'action.hover',
+          cursor: 'pointer',
+        }}
+        onClick={() => setEditingDate(true)}
+      >
+        {editingDate ? (
+          <TextField
+            type="date"
+            size="small"
+            defaultValue={targetDate || ''}
+            autoFocus
+            onBlur={(e) => handleDateChange(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleDateChange((e.target as HTMLInputElement).value); }}
+            onClick={(e) => e.stopPropagation()}
+            sx={{ width: 180 }}
+          />
+        ) : daysLeft !== null ? (
+          <>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: daysLeft < 0 ? '#d32f2f' : '#1976d2' }}>
+              {daysLeft < 0 ? 'Overdue' : `${daysLeft} days`}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              until promotion · {dayjs(targetDate).format('MMM D, YYYY')}
+            </Typography>
+          </>
+        ) : (
+          <Typography variant="body2" color="text.secondary">🎯 Set your promotion target date</Typography>
+        )}
+      </Box>
+
+      {/* Checklist */}
+      <List dense disablePadding sx={{ flex: 1 }}>
         {sections.map(s => (
-          <ListItem key={s.label} disableGutters sx={{ py: 0.5 }}>
-            <ListItemIcon sx={{ minWidth: 32 }}>
-              {s.done ? <CheckCircle color="success" fontSize="small" /> : <RadioButtonUnchecked color="disabled" fontSize="small" />}
+          <ListItem key={s.label} disableGutters sx={{ py: 0.25 }}>
+            <ListItemIcon sx={{ minWidth: 28 }}>
+              {s.done ? <CheckCircle color="success" sx={{ fontSize: 18 }} /> : <RadioButtonUnchecked color="disabled" sx={{ fontSize: 18 }} />}
             </ListItemIcon>
             <ListItemText
               primary={s.label}

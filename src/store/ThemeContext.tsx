@@ -6,7 +6,7 @@ const ThemeModeContext = createContext<{ toggle: () => void; mode: 'light' | 'da
 export function useThemeMode() { return useContext(ThemeModeContext); }
 
 export function ThemeModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('promo-track-theme') as any) || 'light');
+  const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('promo-track-theme') as 'light' | 'dark') || 'light');
 
   const toggle = () => {
     const next = mode === 'light' ? 'dark' : 'light';

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>One Pager — PromoTrack</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #333; background: #fff; line-height: 1.6; }
+
+  /* Header banner */
+  .banner {
+    background: linear-gradient(135deg, #4a7ab5 0%, #2c5282 60%, #1a365d 100%);
+    color: #fff; text-align: center; padding: 32px 20px 16px;
+  }
+  .banner h1 { font-size: 42px; font-weight: 700; letter-spacing: 1px; }
+  .banner h1::after { content: ''; display: block; width: 80px; height: 3px; background: #63b3ed; margin: 8px auto 12px; }
+  .banner .subtitle { font-size: 15px; letter-spacing: 3px; text-transform: uppercase; font-weight: 600; opacity: 0.9; }
+
+  /* Nav bar */
+  .nav {
+    background: rgba(0,0,0,0.25); margin-top: 16px; padding: 10px 0;
+    display: flex; justify-content: center; gap: 28px; font-size: 13px;
+  }
+  .nav a { color: #fff; text-decoration: none; opacity: 0.85; }
+  .nav a:hover { opacity: 1; text-decoration: underline; }
+
+  /* Toolbar */
+  .toolbar {
+    background: #edf2f7; border-bottom: 1px solid #cbd5e0; padding: 8px 20px;
+    display: flex; justify-content: flex-end; gap: 8px; position: sticky; top: 0; z-index: 10;
+  }
+  .toolbar button {
+    padding: 6px 14px; font-size: 13px; border: 1px solid #cbd5e0; border-radius: 4px;
+    cursor: pointer; background: #fff; color: #2d3748; font-family: inherit;
+  }
+  .toolbar button:hover { background: #e2e8f0; }
+  .toolbar button.primary { background: #2c5282; color: #fff; border-color: #2c5282; }
+  .toolbar button.primary:hover { background: #1a365d; }
+  .toolbar .status { font-size: 12px; color: #718096; align-self: center; margin-right: auto; }
+
+  /* Content */
+  .content { max-width: 900px; margin: 0 auto; padding: 40px 40px 60px; }
+
+  /* Section title bar */
+  .section-title {
+    font-size: 18px; font-weight: 600; color: #2c5282;
+    border-bottom: 2px solid #cbd5e0; padding-bottom: 6px; margin: 32px 0 14px;
+  }
+
+  /* Bullet lists */
+  ul { margin: 0 0 8px 28px; font-size: 14px; }
+  li { margin-bottom: 5px; }
+  li strong { font-weight: 600; }
+
+  /* Sub-labels */
+  .label { font-weight: 600; font-size: 14px; color: #2d3748; margin: 14px 0 4px; }
+
+  /* Milestone table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0 16px; }
+  th { background: #edf2f7; text-align: left; padding: 6px 10px; border: 1px solid #cbd5e0; font-weight: 600; color: #2d3748; }
+  td { padding: 6px 10px; border: 1px solid #cbd5e0; }
+
+  /* Design review box */
+  .review-box {
+    background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+    padding: 16px 20px; margin-top: 10px; font-size: 14px;
+  }
+  .review-box li { margin-bottom: 4px; }
+
+  /* Editable highlights */
+  [contenteditable="true"]:focus { outline: 2px solid #63b3ed; outline-offset: 2px; border-radius: 3px; }
+  [contenteditable="true"]:hover { background: #ebf8ff; border-radius: 3px; }
+
+  @media print {
+    .toolbar { display: none; }
+    body { font-size: 12px; }
+    .content { padding: 20px; }
+    .banner { padding: 20px; }
+    .banner h1 { font-size: 32px; }
+    .section-title { margin-top: 20px; }
+    [contenteditable="true"]:hover { background: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <h1 contenteditable="true">One Pager</h1>
+  <div class="subtitle" contenteditable="true">PromoTrack — Promotion Portfolio Builder</div>
+  <nav class="nav">
+    <a href="#what">What</a>
+    <a href="#why">Why</a>
+    <a href="#how">How</a>
+    <a href="#measure">Measure</a>
+    <a href="#review">Design Review</a>
+  </nav>
+</div>
+
+<div class="toolbar">
+  <span class="status" id="status">Click any text to edit</span>
+  <button onclick="addBullet()">+ Add Bullet</button>
+  <button onclick="addTableRow()">+ Add Row</button>
+  <button onclick="saveLocal()">💾 Save</button>
+  <button class="primary" onclick="printPage()">🖨 Print / PDF</button>
+</div>
+
+<div class="content" id="content">
+
+  <!-- WHAT -->
+  <h3 class="section-title" id="what" contenteditable="true">What are we doing?</h3>
+  <ul contenteditable="true">
+    <li>PromoTrack is a client-side web application that enables employees to build, manage, and export their promotion portfolio in a single unified tool. It replaces the manual process of assembling STARR entries, performance metrics, and narrative sections across disconnected documents and spreadsheets.</li>
+    <li>The app runs entirely in the browser with AES-256-GCM encrypted local storage — no backend infrastructure required — and includes optional AI-assisted writing via local Ollama or Amazon Bedrock.</li>
+    <li>All portfolio data can be exported as encrypted portable files or formatted DOCX/PDF documents ready for submission.</li>
+  </ul>
+  <p class="label" contenteditable="true">Stakeholders / Customers:</p>
+  <ul contenteditable="true">
+    <li>Individual contributors preparing promotion portfolios (primary users)</li>
+    <li>Managers reviewing and approving promotion documents</li>
+    <li>STEAM committee members evaluating promotion readiness</li>
+    <li>IT Support / Engineering teams (initial rollout)</li>
+  </ul>
+
+  <!-- WHY -->
+  <h3 class="section-title" id="why" contenteditable="true">Why are we doing it?</h3>
+  <ul contenteditable="true">
+    <li><strong>Business justification:</strong> The current promotion process is fragmented — employees manually compile data from GSD scorecards and blank Word templates, leading to inconsistent quality and missed evidence. Employees spend significant time on formatting rather than content quality.</li>
+    <li><strong>Impact in current state:</strong> No single tool tracks promotion readiness or identifies gaps in Leadership Principle coverage. Managers lack visibility into portfolio completeness before submission deadlines.</li>
+    <li><strong>Related goals:</strong> Reduce portfolio preparation time from days to hours. Improve the quality and completeness of promotion submissions across the organization.</li>
+  </ul>
+
+  <!-- HOW -->
+  <h3 class="section-title" id="how" contenteditable="true">How are we doing it?</h3>
+
+  <p class="label" contenteditable="true">Components:</p>
+  <ul contenteditable="true">
+    <li>Lock Screen — passphrase-based access control with encrypted storage</li>
+    <li>Dashboard — readiness score (0–100), LP coverage chart, gap checklist</li>
+    <li>STARR Editor — create/edit entries with LP tagging and AI-assisted rewriting</li>
+    <li>Metrics Importer — parse GSD scorecard PDFs and CSV files</li>
+    <li>Documents Hub — export encrypted .portfolio files, DOCX, PDF, HTML</li>
+    <li>Profile — employee info, promotion targets, narrative sections</li>
+    <li>Timeline — chronological view of all portfolio activity</li>
+    <li>AI Assistant — gap analysis, scope drafting, STARR improvement</li>
+  </ul>
+
+  <p class="label" contenteditable="true">Technologies:</p>
+  <ul contenteditable="true">
+    <li>React 19, TypeScript, Vite 8, MUI 7, Recharts</li>
+    <li>Web Crypto API (AES-256-GCM, PBKDF2) for encryption</li>
+    <li>docx / jsPDF for document generation, DOMPurify for XSS prevention</li>
+    <li>Ollama (local AI) / Amazon Bedrock (cloud AI) — optional</li>
+  </ul>
+
+  <p class="label" contenteditable="true">Data stores:</p>
+  <ul contenteditable="true">
+    <li>Browser localStorage (AES-256-GCM encrypted) — sole data store, no backend database</li>
+  </ul>
+
+  <p class="label" contenteditable="true">External tech dependencies:</p>
+  <ul contenteditable="true">
+    <li>AWS Amplify Hosting (static SPA deployment with security headers)</li>
+    <li>Ollama / Amazon Bedrock (optional, for AI features)</li>
+  </ul>
+
+  <p class="label" contenteditable="true">Personnel:</p>
+  <ul contenteditable="true">
+    <li>1 developer (design + implementation)</li>
+    <li>Manager review for requirements alignment</li>
+    <li>Security review for encryption and data handling</li>
+  </ul>
+
+  <p class="label" contenteditable="true">Backfills / modification of existing data:</p>
+  <ul contenteditable="true">
+    <li>None — greenfield application, no existing systems modified</li>
+  </ul>
+
+  <p class="label" contenteditable="true">Open questions:</p>
+  <ul contenteditable="true">
+    <li>Should we add Amazon Cognito authentication for multi-user / cross-device support in a future phase?</li>
+    <li>Is DynamoDB-backed persistence needed, or is client-only storage sufficient for the target audience?</li>
+    <li>Should the DOCX export format be standardized across the organization?</li>
+    <li>What is the appetite for a manager-facing read-only view of employee portfolios?</li>
+  </ul>
+
+  <!-- MEASURE -->
+  <h3 class="section-title" id="measure" contenteditable="true">How will we measure the result?</h3>
+
+  <p class="label" contenteditable="true">Milestones / target completion date:</p>
+  <table id="milestones">
+    <tr><th>Milestone</th><th>Target Date</th><th>Status</th></tr>
+    <tr><td contenteditable="true">Core app (dashboard, STARR, profile, export)</td><td contenteditable="true">2026-02-13</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Metrics import (GSD scorecard PDF parsing)</td><td contenteditable="true">2026-02-13</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">AI integration (Ollama, gap analysis, STARR rewrite)</td><td contenteditable="true">2026-02-19</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Security hardening (encryption, lock screen, CSP)</td><td contenteditable="true">2026-02-19</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Amplify deployment</td><td contenteditable="true">TBD</td><td contenteditable="true">🔲 Planned</td></tr>
+    <tr><td contenteditable="true">User feedback &amp; iteration</td><td contenteditable="true">Ongoing</td><td contenteditable="true">🔲 Planned</td></tr>
+  </table>
+
+  <p class="label" contenteditable="true">Expected impact:</p>
+  <ul contenteditable="true">
+    <li>Reduce portfolio preparation time from days to hours</li>
+    <li>Increase LP coverage completeness in submitted portfolios</li>
+    <li>Provide real-time readiness visibility to employees and managers</li>
+  </ul>
+
+  <p class="label" contenteditable="true">KPI / critical metrics:</p>
+  <ul contenteditable="true">
+    <li>Portfolio readiness score at submission (target: &gt;80%)</li>
+    <li>Number of LPs covered per portfolio (target: ≥8 of 16)</li>
+    <li>Time from first entry to export-ready document</li>
+    <li>User adoption rate within target teams</li>
+  </ul>
+
+  <!-- DESIGN REVIEW -->
+  <h3 class="section-title" id="review" contenteditable="true">Summary of design review</h3>
+  <div class="review-box">
+    <ul contenteditable="true">
+      <li><strong>Architecture:</strong> Client-side SPA with encrypted localStorage — no backend required, zero infrastructure cost</li>
+      <li><strong>Security:</strong> AES-256-GCM encryption at rest and for exported files, passphrase lock screen on every load, AI endpoint allowlist, CSP headers, DOMPurify sanitization, file import validation — overall risk rating: LOW</li>
+      <li><strong>Trade-off accepted:</strong> Client-only storage limits cross-device sync but eliminates backend complexity, cost, and data privacy concerns</li>
+      <li><strong>AI:</strong> Optional and defaults to local-only (Ollama) to keep sensitive data off external servers</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+  const SAVE_KEY = 'one-pager-content';
+
+  // Restore saved content
+  const saved = localStorage.getItem(SAVE_KEY);
+  if (saved) document.getElementById('content').innerHTML = saved;
+
+  // Auto-save on every edit
+  document.getElementById('content').addEventListener('input', () => {
+    localStorage.setItem(SAVE_KEY, document.getElementById('content').innerHTML);
+    document.getElementById('status').textContent = 'Saved ✓';
+  });
+
+  function saveLocal() {
+    localStorage.setItem(SAVE_KEY, document.getElementById('content').innerHTML);
+    document.getElementById('status').textContent = 'Saved ✓';
+  }
+
+  function printPage() { window.print(); }
+
+  function addBullet() {
+    const sel = window.getSelection();
+    const ul = sel?.anchorNode?.closest?.('ul') || sel?.anchorNode?.parentElement?.closest?.('ul');
+    if (ul) {
+      const li = document.createElement('li');
+      li.textContent = 'New item — click to edit';
+      ul.appendChild(li);
+      // Focus the new item
+      const range = document.createRange();
+      range.selectNodeContents(li);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } else {
+      document.getElementById('status').textContent = 'Click inside a bullet list first, then press "+ Add Bullet"';
+    }
+  }
+
+  function addTableRow() {
+    const table = document.getElementById('milestones');
+    const row = table.insertRow(-1);
+    ['New milestone', 'TBD', '🔲 Planned'].forEach(text => {
+      const td = row.insertCell(-1);
+      td.contentEditable = 'true';
+      td.textContent = text;
+    });
+    document.getElementById('status').textContent = 'Row added ✓';
+  }
+</script>
+</body>
+</html>

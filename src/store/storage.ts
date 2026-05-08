@@ -1,6 +1,7 @@
-import { AppState } from '../types';
+import { AppState, Metric } from '../types';
 
 const STORAGE_KEY = 'promo-track-data';
+const RESET_FLAG_KEY = 'promo-track-was-reset';
 
 const defaultState: AppState = {
   profile: {
@@ -8,11 +9,8 @@ const defaultState: AppState = {
     proposedTitle: '', manager: '', team: '', startDate: new Date().toISOString().split('T')[0],
     targetPromotionDate: '', effectiveQuarter: '', steamMember: '', steamDirect: '', promotionApprover: '',
   },
-  starr: [],
+  star: [],
   metrics: [],
-  projects: [],
-  feedback: [],
-  goals: [],
   scopeOfRole: '',
   bestReasonsNotToPromote: '',
   additionalInfo: '',
@@ -20,12 +18,19 @@ const defaultState: AppState = {
 
 export function loadState(): AppState {
   try {
+    if (localStorage.getItem(RESET_FLAG_KEY)) {
+      localStorage.removeItem(RESET_FLAG_KEY);
+      return { ...defaultState };
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState;
-    const parsed = JSON.parse(raw);
-    return migrateState({ ...defaultState, ...parsed, profile: { ...defaultState.profile, ...parsed.profile } });
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return migrateState({ ...defaultState, ...parsed, profile: { ...defaultState.profile, ...parsed.profile } });
+    }
+    // If no plaintext data found, check for old encrypted data — can't decrypt, so return defaults
+    return { ...defaultState };
   } catch {
-    return defaultState;
+    return { ...defaultState };
   }
 }
 
@@ -37,12 +42,29 @@ export function getDefaultState(): AppState {
   return JSON.parse(JSON.stringify(defaultState));
 }
 
+export function clearAllData(): void {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem('promo-track-encrypted');
+  localStorage.removeItem('promo-track-pass-hash');
+  localStorage.removeItem('promo-track-lock-ts');
+  localStorage.setItem(RESET_FLAG_KEY, '1');
+}
+
 function migrateState(state: AppState): AppState {
-  // Migrate metrics without notes/channel fields
-  state.metrics = state.metrics.map((m: any) => ({ notes: '', channel: '', ...m }));
-  // Migrate feedback without new fields
-  state.feedback = state.feedback.map((f: any) => ({
-    fromTitle: '', reasonsNotToSupport: '', supportsPromotion: true, steamDirect: '', ...f,
+  // Migrate old 'starr' key to 'star'
+  if (!state.star && Array.isArray((state as any).starr)) {
+    state.star = (state as any).starr;
+    delete (state as any).starr;
+  }
+  state.metrics = state.metrics.map((m: Partial<Metric>) => ({ 
+    id: m.id || '', 
+    type: m.type || '', 
+    value: m.value || 0, 
+    target: m.target || 0, 
+    date: m.date || '', 
+    period: m.period || 'monthly', 
+    notes: m.notes || '', 
+    channel: m.channel || '' 
   }));
   return state;
 }

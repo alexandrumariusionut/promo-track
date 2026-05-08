@@ -18,6 +18,17 @@ dist-ssr
 .idea
 .DS_Store
 *.suo
+
+# Build output
+app/
+
+# Large media
+public/walkthrough.mov
+*.mov
+
+# Internal tooling
+.sisyphus/
+.harmony/
 *.ntvs*
 *.njsproj
 *.sln
