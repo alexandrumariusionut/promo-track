@@ -302,8 +302,8 @@ export const MAX_IMPORT_SIZE = 5 * 1024 * 1024; // 5MB
 export async function extractPDFText(file: File): Promise<string> {
   if (file.size > MAX_IMPORT_SIZE) throw new Error(`File too large (max ${MAX_IMPORT_SIZE / 1024 / 1024}MB)`);
   const pdfjsLib = await import('pdfjs-dist');
-  // Use bundled worker instead of CDN to avoid supply chain risk
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
+  // Use static worker from public/ to avoid dynamic import issues with Harmony builds
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('/pdf.worker.min.mjs', window.location.origin).href;
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let text = '';
