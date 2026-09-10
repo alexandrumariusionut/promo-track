@@ -12,7 +12,10 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "build-harmony-app": "vite build --outDir app && build-harmony",
-    "sync-wiki": "node scripts/sync-wiki.mjs"
+    "sync-wiki": "node scripts/sync-wiki.mjs",
+    "test:backend": "vitest run backend",
+    "backend:start": "npm start --prefix backend",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -1,0 +1,362 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  PromoTrack backend - single stack with one Midway-authorised HTTP API serving
+  the review-sharing routes (/reviews) and the portfolio persistence routes (/userdata).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Parameters
+# ─────────────────────────────────────────────────────────────────────────────
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [beta, prod]
+    Description: Deployment stage. Drives table names, allowed origins and audiences.
+
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: Optional email address subscribed to API health alarms.
+
+  ReviewsTableName:
+    Type: String
+    Default: ""
+    Description: >
+      Leave empty to create a table named promo-track-reviews[-<stage>].
+      For the prod migration from the two legacy stacks, first import the existing
+      table into this stack (see backend/README.md).
+
+  UsersTableName:
+    Type: String
+    Default: ""
+    Description: See ReviewsTableName.
+
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+  IsProd: !Equals [!Ref Stage, prod]
+  UseDefaultReviewsName: !Equals [!Ref ReviewsTableName, ""]
+  UseDefaultUsersName: !Equals [!Ref UsersTableName, ""]
+
+Mappings:
+  StageConfig:
+    beta:
+      Origins: "https://promo-track.beta.harmony.a2z.com,http://localhost:5173,http://localhost:5174"
+      Audiences: "promo-track.beta.harmony.a2z.com"
+      TableSuffix: "-beta"
+    prod:
+      Origins: "https://promo-track.harmony.a2z.com,https://promo-track.beta.harmony.a2z.com,http://localhost:5173"
+      Audiences: "promo-track.harmony.a2z.com,promo-track.beta.harmony.a2z.com"
+      TableSuffix: ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Globals
+# ─────────────────────────────────────────────────────────────────────────────
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Architectures: [arm64]
+    Timeout: 10
+    MemorySize: 128
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+    Environment:
+      Variables:
+        REVIEWS_TABLE: !Ref ReviewsTable
+        USERS_TABLE: !Ref UsersTable
+        STAGE: !Ref Stage
+
+Resources:
+  # ───────────────────────────── API + Auth ────────────────────────────────
+  Api:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod   # path segment kept as /prod for URL compatibility with existing clients
+      CorsConfiguration:
+        AllowOrigins: !Split [",", !FindInMap [StageConfig, !Ref Stage, Origins]]
+        AllowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        AllowHeaders: ["Authorization", "Content-Type", "If-Match"]
+        MaxAge: 600
+      Auth:
+        DefaultAuthorizer: MidwayAuth
+        Authorizers:
+          MidwayAuth:
+            FunctionArn: !GetAtt MidwayAuthorizerFunction.Arn
+            FunctionInvokeRole: !GetAtt MidwayAuthorizerRole.Arn
+            Identity:
+              Headers: [Authorization]
+              ReauthorizeEvery: 300   # cache verified tokens for 5 minutes per Authorization header
+            AuthorizerPayloadFormatVersion: "2.0"
+            EnableSimpleResponses: false
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","method":"$context.httpMethod","path":"$context.path","status":"$context.status","latency":"$context.responseLatency","alias":"$context.authorizer.alias","error":"$context.error.message"}'
+
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/promo-track-${Stage}
+      RetentionInDays: 90
+
+  MidwayAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: "es2022"
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+        EntryPoints:
+          - authorizer.mjs
+        External:
+          - "@aws-sdk/*"
+    Properties:
+      Handler: authorizer.handler
+      CodeUri: src/
+      Timeout: 5
+      Environment:
+        Variables:
+          ISSUER: "https://midway-auth.amazon.com"
+          JWKS_URI: "https://midway-auth.amazon.com/jwks.json"
+          AUDIENCES: !FindInMap [StageConfig, !Ref Stage, Audiences]
+
+  MidwayAuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeAuthorizerLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt MidwayAuthorizerFunction.Arn
+
+  # ───────────────────────────── Tables ────────────────────────────────────
+  ReviewsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !If
+        - UseDefaultReviewsName
+        - !Sub ["promo-track-reviews${Suffix}", { Suffix: !FindInMap [StageConfig, !Ref Stage, TableSuffix] }]
+        - !Ref ReviewsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sessionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sessionId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProd, true, false]
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    # Portfolio data is the user's only copy once localStorage is cleared —
+    # never let a stack delete/replace destroy it.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !If
+        - UseDefaultUsersName
+        - !Sub ["promo-track-users${Suffix}", { Suffix: !FindInMap [StageConfig, !Ref Stage, TableSuffix] }]
+        - !Ref UsersTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+      DeletionProtectionEnabled: !If [IsProd, true, false]
+
+  # ───────────────────────────── Review functions ──────────────────────────
+  CreateReviewFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: review/create.handler
+      CodeUri: src/
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/reviews", Method: POST }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:PutItem]
+              Resource: !GetAtt ReviewsTable.Arn
+
+  GetReviewFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: review/get.handler
+      CodeUri: src/
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/reviews/{sessionId}", Method: GET }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem]
+              Resource: !GetAtt ReviewsTable.Arn
+
+  RevokeReviewFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: review/revoke.handler
+      CodeUri: src/
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/reviews/{sessionId}", Method: DELETE }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:DeleteItem]
+              Resource: !GetAtt ReviewsTable.Arn
+
+  SubmitCommentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: review/comments.handler
+      CodeUri: src/
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/reviews/{sessionId}/comments", Method: POST }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:UpdateItem]
+              Resource: !GetAtt ReviewsTable.Arn
+
+  CheckStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: review/status.handler
+      CodeUri: src/
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/reviews/{sessionId}/status", Method: GET }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem]
+              Resource: !GetAtt ReviewsTable.Arn
+
+  # ───────────────────────────── Userdata functions ────────────────────────
+  GetUserDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: userdata/get.handler
+      CodeUri: src/
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/userdata/{userId}", Method: GET }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem]
+              Resource: !GetAtt UsersTable.Arn
+
+  SaveUserDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: userdata/save.handler
+      CodeUri: src/
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/userdata/{userId}", Method: PUT }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:UpdateItem]
+              Resource: !GetAtt UsersTable.Arn
+
+  # ───────────────────────────── Observability ─────────────────────────────
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub promo-track-${Stage}-alarms
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarmEmail
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmail
+
+  Api5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub promo-track-${Stage}-api-5xx
+      AlarmDescription: PromoTrack API is returning server errors
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref Api
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  AuthDenyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub promo-track-${Stage}-auth-denies
+      AlarmDescription: Unusual volume of 401/403 from the API (token issues or probing)
+      Namespace: AWS/ApiGateway
+      MetricName: 4xx
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref Api
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 100
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for both /reviews and /userdata routes
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  ReviewsTableName:
+    Value: !Ref ReviewsTable
+  UsersTableName:
+    Value: !Ref UsersTable
+  AlarmTopicArn:
+    Value: !Ref AlarmTopic

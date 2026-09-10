@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, type-check, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci
+          npm ci --prefix backend
+
+      - name: Audit (production deps, high+)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Unit tests (frontend + backend)
+        run: npm test
+
+      - name: Frontend build
+        env:
+          VITE_SKIP_HARMONY_NAVBAR: "0"
+        run: npm run build
+
+      - name: SAM validate
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - run: sam validate --lint
+        working-directory: backend
+
+  deploy-beta:
+    name: Deploy backend to beta
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: beta
+    permissions:
+      contents: read
+      id-token: write   # OIDC → assume the deploy role, no long-lived keys in the repo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-west-1
+      - name: Build
+        run: sam build
+        working-directory: backend
+      - name: Deploy (beta)
+        run: sam deploy --config-env beta --no-confirm-changeset --no-fail-on-empty-changeset
+        working-directory: backend
+
+  # Production deploys stay manual: run `npm run deploy:prod` from backend/ after the
+  # beta stack has been verified. See backend/MIGRATION.md for the first prod cut-over.

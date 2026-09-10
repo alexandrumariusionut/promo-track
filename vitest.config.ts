@@ -19,12 +19,12 @@ export default defineConfig({
         test: {
           name: 'backend',
           environment: 'node',
-          include: ['backend/**/tests/**/*.test.mjs'],
+          include: ['backend/tests/**/*.test.mjs'],
         },
       },
     ],
     coverage: {
-      include: ['src/**', 'backend/*/src/**'],
+      include: ['src/**', 'backend/src/**'],
       exclude: ['**/__tests__/**', '**/tests/**', 'src/content/**'],
     },
   },

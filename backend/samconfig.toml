@@ -1,0 +1,17 @@
+# sam deploy --config-env beta | prod
+version = 0.1
+
+[default.global.parameters]
+region = "eu-west-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+
+[beta.deploy.parameters]
+stack_name = "promo-track-backend-beta"
+parameter_overrides = "Stage=beta"
+
+[prod.deploy.parameters]
+stack_name = "promo-track-backend"
+# After importing the legacy tables (README.md) these names point at the existing data:
+parameter_overrides = "Stage=prod ReviewsTableName=promo-track-reviews UsersTableName=promo-track-users"
