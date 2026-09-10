@@ -1,283 +1,185 @@
 # PromoTrack — Deployment Document
 
-**Last updated:** 2026-07-29  
+**Last updated:** 2026-09-10  
 **Region:** eu-west-1 (Ireland)  
 **Account:** 029465354181  
 **Deployed by:** marindru-Isengard
 
 ---
 
-## Architecture Overview
+## Current state (2026-09-10)
+
+| Stage | Frontend (Harmony) | Backend stack | API base URL | Tables |
+|---|---|---|---|---|
+| **beta** | `promo-track.beta.harmony.a2z.com` — Harmony version **3.3.1** (deployed 2026-09-10) | `promo-track-backend-beta` (unified stack) | `https://g093baotu0.execute-api.eu-west-1.amazonaws.com/prod` | `promo-track-users-beta`, `promo-track-reviews-beta` |
+| **prod** | `promo-track.harmony.a2z.com` — **never deployed** (root returns 404) | legacy `promo-track-userdata` + `promo-track-review` (still running, unchanged since 2026-07-29) | `t8b50k0lwh…` (userdata), `1jvjxaiuig…` (review) | `promo-track-users`, `promo-track-reviews` |
+
+The prod cut-over to the unified stack is documented in `backend/README.md` and has **not** been executed yet.
+
+---
+
+## Architecture
 
 ```
 ┌──────────────────────────────────────────┐
 │          End Users (Browser)             │
 │  Midway cookie → midwayAuth.ts → token   │
 └──────────┬───────────────────────────────┘
-           │ Bearer <JWT>
+           │ Bearer <Midway id_token>
      ┌─────▼──────────────────────────────────────────┐
-     │   Harmony Platform (Primary)                   │
-     │   promo-track.harmony.a2z.com (prod)           │
-     │   promo-track.beta.harmony.a2z.com (beta)      │
-     │   (React SPA — static files)                   │
+     │   Harmony Platform (static SPA hosting)        │
+     │   promo-track.beta.harmony.a2z.com  (beta)     │
+     │   promo-track.harmony.a2z.com       (prod)     │
+     │   CSP merged from .harmony/harmony-metadata    │
      └─────┬──────────────────────────────────────────┘
-           │ Bearer <JWT>
+           │ Bearer <JWT>  (+ If-Match on PUT)
      ┌─────▼──────────────────────────────────────────┐
-     │   API Gateway HttpApi (Lambda REQUEST Auth)    │
-     │   ┌──────────────────────────────────────────┐ │
-     │   │ authorizer.mjs: aws-jwt-verify           │ │
-     │   │ RS256 · Midway JWKS · alias extraction   │ │
-     │   └──────────────────────────────────────────┘ │
-     │   userdata: t8b50k0lwh.execute-api.eu-west-1   │
-     │   review:   1jvjxaiuig.execute-api.eu-west-1   │
-     │   AI proxy: 706rf9fx5c.execute-api.eu-west-1   │
+     │   ONE API Gateway HttpApi per stage            │
+     │   Lambda REQUEST authorizer (aws-jwt-verify,   │
+     │   RS256, Midway JWKS, 5-min policy cache)      │
+     │   /reviews*   → review/*.mjs  (5 functions)    │
+     │   /userdata/* → userdata/*.mjs (2 functions)   │
+     │   Access logs (90 d) · X-Ray · 5XX/4XX alarms  │
      └─────┬──────────────────────────────────────────┘
            │
      ┌─────▼──────────────────────────────────────────┐
-     │   DynamoDB (PAY_PER_REQUEST)                   │
-     │   promo-track-users (userId = alias)           │
-     │   promo-track-reviews (sessionId, TTL)         │
+     │   DynamoDB (PAY_PER_REQUEST, PITR, Retain)     │
+     │   users   (userId = alias, version counter)    │
+     │   reviews (sessionId, TTL 7 d, ownerAlias,     │
+     │            reviewerAliases, per-entry comments)│
      └────────────────────────────────────────────────┘
 
      ┌────────────────────────────────────────────────┐
-     │   EC2 Instance (t3.xlarge) — Ollama fallback   │
-     │   3.249.190.229 · Nginx HTTPS → :11434         │
-     │   Model: llama3.1:8b                           │
+     │   AI proxy 706rf9fx5c (Bedrock, Claude Haiku)  │
+     │   NOT in this repo · NO Midway auth · OPEN item│
      └────────────────────────────────────────────────┘
 ```
 
+The Ollama EC2 fallback (`3.249.190.229`) is no longer referenced by the app; the frontend only allows the build-configured AI endpoint or `localhost`.
+
 ---
 
-## Deployment Flow
+## Frontend (Harmony)
 
-### Primary: Harmony Platform (Frontend)
+### Build
 
 ```bash
-# Build for Harmony (outputs to app/ directory with Harmony manifest)
-npm run build-harmony-app    # = vite build --outDir app && build-harmony
+npm ci
+npm run build-harmony-app:beta   # vite build --mode beta --outDir app && build-harmony
+npm run build-harmony-app        # production mode (reads .env.production if present)
+```
 
-# Deploy to beta stage
+- API endpoints are **baked in at build time** from `VITE_REVIEW_API_URL` / `VITE_USERDATA_API_URL` / `VITE_AI_API_URL` (`src/config.ts`). They can no longer be overridden from `localStorage`.
+- `.env.beta` (committed, no secrets) points beta at the unified beta API. `.env.development.local` (gitignored) is for the dev server only — Vite never loads it for production builds.
+- Bundle: route-level lazy loading plus vendor chunks (`react`, `mui`, `charts`, `docx`, `pdfgen`, `pdf`); entry chunk ≈ 75 KB.
+
+### Deploy
+
+```bash
 harmony app deploy -s beta
-
-# Deploy to prod
-harmony app deploy -s prod
+harmony app deploy -s prod       # not yet done — see "Prod cut-over" below
+harmony app display-versions -s beta
 ```
 
-**Prod URL:** https://promo-track.harmony.a2z.com  
-**Beta URL:** https://promo-track.beta.harmony.a2z.com
+Harmony CLI must be ≥ 1.8.45 (`harmony update`); older versions fail `display-versions` with "Cannot read properties of null".
 
-### Backend: SAM Stacks (Lambda + API Gateway + DynamoDB)
+### `.harmony/harmony-metadata.json` rules (learned 2026-09-10)
 
-Both backend services are deployed via AWS SAM. Each has its own `template.yaml` defining:
-- HttpApi with CORS (explicit origins) and Lambda REQUEST authorizer
-- Authorizer Lambda (Midway JWT verification via aws-jwt-verify)
-- Handler Lambdas (Node.js 20, ARM64)
-- DynamoDB table
+- The CSP is supplied **only** through the `content-security-policy` object. Harmony merges each directive with its platform defaults (`'self'`, navbar and console hosts). Do not add `'none'` directives and do not duplicate the CSP in `headers`.
+- `worker-src` must include `'self'` (PDF worker is served from the app origin) and `blob:`.
+- Only Harmony-approved response headers are accepted. `Referrer-Policy`, `Permissions-Policy` and `X-Frame-Options` are **rejected at registration**; `X-Content-Type-Options: nosniff` is accepted.
+- When the API host changes, add it to `connect-src`.
 
-```bash
-# Deploy userdata API
-cd backend/userdata
-sam build
-sam deploy    # Uses samconfig.toml defaults (eu-west-1, stack: promo-track-userdata)
+Effective beta CSP (verified live): `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: …; connect-src 'self' <harmony hosts> midway-auth.amazon.com <api hosts>; worker-src 'self' blob:; media-src 'self'; frame-src <harmony/midway hosts>`.
 
-# Deploy review API
-cd backend/review
-sam build
-sam deploy    # Uses samconfig.toml defaults (eu-west-1, stack: promo-track-review)
-```
+### Login flow gotcha
 
-**Important:** All API calls require a valid Midway JWT in the `Authorization: Bearer <token>` header. Requests without a token or with an expired/invalid token receive 401/403.
-
-### Legacy/Secondary: AWS Amplify
-
-An `amplify.yml` configuration exists for legacy Amplify deployments:
-- Build command: `npm run build`
-- Artifacts `baseDirectory`: `app`
-- Three-tier cache headers: index.html (no-cache), assets (immutable), fallback (1hr)
-- CSP includes `midway-auth.amazon.com` in connect-src
-- App ID: `d6iifszd48m8n`
+`/_login?targetUrlBase64=<b64>` returns **400 "Failure to contact origin"** if the base64 padding `=` is not URL-encoded (`%3D`). Browsers encode it (the Harmony landing page uses `encodeURIComponent`), so users are unaffected; only hand-written curl tests hit this. The July "beta login 400" investigation was this artefact.
 
 ---
 
-## Resources
+## Backend (AWS SAM, single stack)
 
-### 1. Harmony App — Frontend (Primary)
+`backend/template.yaml` — parameters: `Stage` (beta|prod), `AllowedOrigins` (comma list), `AlarmEmail`, `ReviewsTableName`, `UsersTableName`.
 
-| Property       | Value                                          |
-|----------------|------------------------------------------------|
-| App Name       | `promo-track`                                  |
-| Platform       | Harmony (static hosting)                       |
-| Stages         | `beta`, `prod`                                 |
-| Prod URL       | https://promo-track.harmony.a2z.com            |
-| Beta URL       | https://promo-track.beta.harmony.a2z.com       |
-| Build Tool     | Vite 8 + @amzn/harmony-build-tools             |
-| Build Command  | `npm run build-harmony-app`                    |
-| Bindle         | `amzn1.bindle.resource.p35xcahiumtgmx2r4nwq`   |
-
-### 2. Backend APIs — SAM Stacks
-
-| API | Endpoint | Auth | Stack Name |
-|-----|----------|------|------------|
-| User Data | `https://t8b50k0lwh.execute-api.eu-west-1.amazonaws.com/prod` | ✅ Midway JWT | promo-track-userdata |
-| Review | `https://1jvjxaiuig.execute-api.eu-west-1.amazonaws.com/prod` | ✅ Midway JWT | promo-track-review |
-| AI (Bedrock proxy) | `https://706rf9fx5c.execute-api.eu-west-1.amazonaws.com` | ⚠️ None (shared service) | — |
-
-**Authorizer Configuration:**
-- Type: Lambda REQUEST
-- Runtime: Node.js 20 (ARM64, esbuild)
-- JWKS URI: `https://midway-auth.amazon.com/jwks.json`
-- Algorithm: RS256
-- Audiences: `promo-track.harmony.a2z.com,promo-track.beta.harmony.a2z.com`
-- Clock Skew: 30s (default aws-jwt-verify)
-- Payload Format: 2.0, `EnableSimpleResponses: false`
-
-**CORS Configuration (both APIs):**
-```yaml
-AllowOrigins:
-  - "https://promo-track.harmony.a2z.com"
-  - "https://promo-track.beta.harmony.a2z.com"
-  - "http://localhost:5173"
-AllowMethods: ["GET", "PUT/POST", "OPTIONS"]
-AllowHeaders: ["Authorization", "Content-Type"]
+```bash
+cd backend
+npm ci
+npm run validate       # sam validate --lint
+npm test               # vitest (shared runner with frontend)
+npm run deploy:beta    # sam build (esbuild on PATH) + sam deploy --config-env beta
+npm run deploy:prod    # see cut-over first
 ```
 
-### 3. DynamoDB Tables
+Stage differences: beta uses `-beta` table suffixes, `promo-track.beta.harmony.a2z.com` as the JWT audience and CORS origin (plus localhost), no deletion protection. Prod uses the existing table names, both Harmony hosts as audiences, deletion protection on the users table.
 
-| Table | Partition Key | TTL | Notes |
-|-------|--------------|-----|-------|
-| promo-track-users | `userId` (S) — verified alias | — | Userdata persistence |
-| promo-track-reviews | `sessionId` (S) | `expiresAt` | Review sessions with auto-expiry |
+### Legacy stacks
 
-### 4. EC2 Instance — Ollama AI Backend (Fallback)
+`promo-track-userdata` and `promo-track-review` still serve prod. Their templates were removed from the repo in commit `8477102`; the last deployed version (2026-07-29) runs `nodejs20.x`, whose **updates have been blocked by Lambda since 2026-07-01**. They cannot be modified, only deleted. Do not run `sam delete` on them before completing the cut-over — both tables carry `DeletionPolicy: Retain`, but verify with `aws cloudformation get-template` first.
 
-| Property        | Value                          |
-|-----------------|--------------------------------|
-| Instance ID     | `i-0d248919ac611baa4`          |
-| Instance Type   | `t3.xlarge` (4 vCPU, 16 GB RAM) |
-| Public IP       | `3.249.190.229`                |
-| Availability Zone | `eu-west-1c`                 |
-| Model           | `llama3.1:8b` (~4.7 GB)       |
-| Key Pair        | `promo-track-key`              |
+### Prod cut-over (not yet executed)
 
-### 5. AWS Amplify App — Frontend (Legacy)
-
-| Property       | Value                                          |
-|----------------|------------------------------------------------|
-| App ID         | `d6iifszd48m8n`                                |
-| Branch         | `main`                                         |
-| URL            | https://main.d6iifszd48m8n.amplifyapp.com      |
+Follow `backend/README.md` § "One-time production migration": delete the legacy stacks (tables are retained), import `promo-track-reviews` and `promo-track-users` into a new `promo-track-backend` stack with an IMPORT change set, deploy the rest of the stack, then point the frontend build (`.env.production`) and `connect-src` at the new `ApiUrl` and deploy Harmony prod.
 
 ---
 
-## Access & Operations
+## Verification checklist after any deploy
 
-### Redeploy frontend (Harmony)
 ```bash
-cd promo-track
-npm run build-harmony-app
-harmony app deploy -s beta    # or -s prod
+# Auth matrix against the API (get a token via the browser or midway cookie)
+A=https://<api>.execute-api.eu-west-1.amazonaws.com/prod
+curl -s -o /dev/null -w '%{http_code}\n' $A/userdata/<alias>                          # 401
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer a.b.c' $A/userdata/<alias>  # 403
+curl -s -H "Authorization: Bearer $TOK" $A/userdata/<alias>                            # 200 {"data":…,"version":n}
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOK" $A/userdata/other  # 403
+curl -s -X PUT -H "Authorization: Bearer $TOK" -H 'If-Match: 0' -d '{}' $A/userdata/<alias> # 409 if record exists
+
+# CORS preflight must be 204 with allow-headers incl. if-match and methods incl. DELETE
+curl -s -D - -o /dev/null -X OPTIONS -H 'Origin: https://promo-track.beta.harmony.a2z.com' \
+  -H 'Access-Control-Request-Method: PUT' -H 'Access-Control-Request-Headers: authorization,content-type,if-match' $A/userdata/x
 ```
 
-### Redeploy backend
-```bash
-cd backend/userdata && sam build && sam deploy
-cd backend/review && sam build && sam deploy
-```
-
-### SSH into EC2 (Ollama)
-```bash
-ssh -i ~/.ssh/promo-track-key.pem ec2-user@3.249.190.229
-```
-
-### Sync wiki guidelines
-```bash
-mwinit                # Ensure Midway session is active
-npm run sync-wiki     # Fetches wiki → src/content/guidelines-wiki.ts
-```
-
-### Test API authentication
-```bash
-# Get a Midway token (browser-based, or via mwinit + curl)
-# Test with token:
-curl -H "Authorization: Bearer <token>" \
-  https://t8b50k0lwh.execute-api.eu-west-1.amazonaws.com/prod/userdata/<alias>
-
-# Expected results:
-# No token → 401
-# Valid token, own alias → 200
-# Valid token, other alias → 403
-# Expired/malformed → 401
-```
+Frontend: hard refresh, check `<title>PromoTrack</title>`, favicon, `/content/guidelines-wiki.html` → 200, Metrics PDF import (worker), Share for Review dialog (create, copy, revoke).
 
 ---
 
 ## Troubleshooting
 
-### AuthorizationScopes Gotcha
-If you see `"message": "Unauthorized"` on all requests after deploying:
-- **Root Cause:** `AuthorizationScopes` property must NOT appear under a Lambda REQUEST authorizer
-- SAM/CloudFormation silently enables OAuth-style scope checking when this property exists, causing all requests to fail even with valid tokens
-- **Fix:** Remove any `AuthorizationScopes` lines from the HttpApi route Auth configuration in `template.yaml`
-
-### 401 on frontend after deploy
-- Verify the `AUDIENCES` environment variable on the authorizer Lambda includes the hostname the user is accessing from
-- Check that `.harmony/harmony-metadata.json` CSP `connect-src` includes `midway-auth.amazon.com`
-
-### CORS errors
-- Verify `AllowOrigins` in `template.yaml` includes the exact origin (no trailing slash)
-- `AllowHeaders` must include `Authorization`
-
-### Stale bundle / old code showing
-- `amplify.yml` (and Harmony) set `Cache-Control: no-cache, no-store, must-revalidate` on `index.html`
-- Assets under `assets/` are fingerprinted and served with `max-age=31536000, immutable`
-- If users report old behavior: hard refresh or check CDN cache
+| Symptom | Cause | Fix |
+|---|---|---|
+| Every request after the first returns 403 for ~5 min | Authorizer policy scoped to a single route while `ReauthorizeEvery` caches it | Policy must use the stage wildcard ARN (`stageWildcardArn()` in `authorizer.mjs`) |
+| `CorsConfiguration` is `null` after deploy | `AllowOrigins` built with `!Split`/`!FindInMap` is silently dropped by SAM | Use the `AllowedOrigins` CommaDelimitedList parameter |
+| Stack rollback: "KMS key … does not exist" | AWS-managed `aws/dynamodb` key is created lazily | Do not set `SSEType: KMS`; AWS-owned encryption applies by default |
+| Early-validation "resource already exists" | A retained table from a rolled-back deploy | Delete the empty orphan table (check `ItemCount` first) or import it |
+| `sam build`: "Cannot find esbuild" | SAM looks on PATH, not in `src/` | `npm run build` (puts `node_modules/.bin` on PATH) |
+| Harmony registration fails "header not approved" | Unapproved response header in metadata | Keep only `X-Content-Type-Options`; CSP via the object |
+| `Failure to contact origin. Received: 400` on `/_login` | Unencoded `=` in `targetUrlBase64` (curl only) | URL-encode the base64 |
+| 401 on frontend after deploy | Authorizer `AUDIENCES` missing the host | Check `StageConfig` mapping in `template.yaml` |
 
 ---
 
-## Cost Estimate
+## Cost estimate
 
-| Resource          | Estimated Monthly Cost |
-|-------------------|----------------------|
-| EC2 t3.xlarge (on-demand, 24/7) | ~$122/month |
-| EBS 30 GB gp3     | ~$2.40/month         |
-| Harmony Hosting    | Internal (no cost)   |
-| API Gateway + Lambda | Minimal (~$1)      |
-| DynamoDB (on-demand) | Minimal (~$0.50)   |
-| **Total**          | **~$126/month**      |
-
----
-
-## Security Notes
-
-- All backend APIs authenticated via Midway JWT (RS256)
-- CORS locked to explicit origins (no wildcard)
-- Ollama EC2 security group still open to 0.0.0.0/0 on ports 443/11434 — consider restricting
-- AI proxy (`706rf9fx5c`) does not have JWT auth — shared service, monitored
-- CSP in production does NOT include localhost:11434 (removed 2026-07-22)
-- Review session URLs use 128-bit UUID secrecy (acceptable for internal tool)
-- localStorage data namespaced per verified alias — shared browser profiles are safe
+| Resource | Estimated monthly cost |
+|---|---|
+| API Gateway + Lambda (2 stages) | ~ $1 |
+| DynamoDB on-demand + PITR | ~ $1 |
+| CloudWatch logs/alarms/X-Ray | ~ $1 |
+| Harmony hosting | internal |
+| EC2 t3.xlarge Ollama fallback (`i-0d248919ac611baa4`) | ~ $122 — **no longer used by the app; candidate for termination** |
 
 ---
 
 ## Teardown
 
-To remove all resources:
-
 ```bash
-# Delete SAM stacks
+# Beta backend (tables are retained; delete them explicitly if wanted)
+aws cloudformation delete-stack --stack-name promo-track-backend-beta --region eu-west-1
+
+# Legacy prod stacks — ONLY after the cut-over
 aws cloudformation delete-stack --stack-name promo-track-userdata --region eu-west-1
 aws cloudformation delete-stack --stack-name promo-track-review --region eu-west-1
 
-# Terminate EC2 instance
+# Unused Ollama instance
 aws ec2 terminate-instances --instance-ids i-0d248919ac611baa4 --region eu-west-1
-
-# Delete security group (after instance terminates)
-aws ec2 delete-security-group --group-id sg-065cd2d8b13cec718 --region eu-west-1
-
-# Delete key pair
-aws ec2 delete-key-pair --key-name promo-track-key --region eu-west-1
-rm ~/.ssh/promo-track-key.pem
-
-# Delete Amplify app (legacy)
-aws amplify delete-app --app-id d6iifszd48m8n --region eu-west-1
 ```

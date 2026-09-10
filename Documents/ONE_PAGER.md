@@ -1,18 +1,18 @@
 # One-Page Design for PromoTrack
 
-**Last updated:** 2026-07-29
+**Last updated:** 2026-09-10
 
 ---
 
 ## What are we doing?
 
-PromoTrack is a client-side web application that enables employees to build, manage, and export their promotion portfolio in a single unified tool. It replaces the current manual process of assembling STAR entries, performance metrics, peer shout-outs, and narrative sections across multiple disconnected documents and spreadsheets. The app runs in the browser with AES-256-GCM encrypted local storage namespaced per user, authenticated via Midway JWT, and includes AI-assisted coaching powered by Amazon Bedrock (Claude Haiku 4.5) via a serverless Lambda proxy. The AI is an advisor only — it grounds every suggestion in the user's own words (verbatim-quote justification) and never judges promotion readiness. All portfolio data can be exported as encrypted portable files or formatted DOCX/PDF documents ready for submission.
+PromoTrack is a web application that lets employees build, manage and export their promotion portfolio in one place. It replaces the manual assembly of STAR entries, performance metrics and narrative sections across disconnected documents. Users sign in with Midway; the portfolio is stored per alias in the browser and in a serverless backend (DynamoDB) with conflict-safe sync, so it follows the user across devices without silent overwrites. AI coaching (Amazon Bedrock, Claude Haiku 4.5) is advisory only: every suggestion must quote the user's own words and is validated against the allowed role guidelines before it is shown. Portfolios export as a formatted DOCX and a portable JSON backup, and can be shared read-only with named reviewers through a revocable link.
 
-**Deployment:** Harmony platform at `promo-track.harmony.a2z.com` (prod) and `promo-track.beta.harmony.a2z.com` (beta). Backend APIs via AWS SAM (Lambda + API Gateway + DynamoDB) in eu-west-1, authenticated with Midway JWT.
+**Deployment:** Harmony platform — `promo-track.beta.harmony.a2z.com` (beta, live, version 3.3.1) and `promo-track.harmony.a2z.com` (prod, pending cut-over). Backend: one AWS SAM stack per stage (Lambda + API Gateway HTTP API + DynamoDB) in eu-west-1, Midway-JWT authorised.
 
 **Stakeholders/Customers:**
 - Individual contributors preparing promotion portfolios (primary users)
-- Managers reviewing and approving promotion documents
+- Managers reviewing and commenting on promotion documents
 - STEAM committee members evaluating promotion readiness
 - IT Support / Engineering teams (initial rollout)
 
@@ -20,108 +20,78 @@ PromoTrack is a client-side web application that enables employees to build, man
 
 ## Why are we doing it?
 
-- The current promotion document process is fragmented — employees manually compile data from GSD scorecards, shout-out emails, and blank Word templates, leading to inconsistent quality and missed evidence
-- Employees spend significant time on formatting and assembly rather than content quality
-- No single tool tracks promotion readiness or identifies gaps in Role Guideline coverage
-- Managers lack visibility into portfolio completeness before the submission deadline
-- Shout-out emails are frequently lost or forgotten — there is no centralized collection mechanism
-- Goal: reduce portfolio preparation time and improve the quality and completeness of promotion submissions
+- The promotion document process is fragmented — employees compile data from GSD scorecards and blank Word templates, leading to inconsistent quality and missed evidence
+- Time goes into formatting and assembly rather than content quality
+- No tool shows readiness against the actual Role Guidelines or where evidence is missing
+- Managers lack a lightweight way to review and comment before submission
+- Goal: reduce preparation time and improve completeness and quality of submissions
 
 ---
 
 ## How are we doing it?
 
 **Components:**
-- Lock Screen — passphrase-based access control with AES-256-GCM encryption
-- Promotion Readiness — 7 L4 Role Guideline accordion cards, per-guideline icons, segmented progress rail, deterministic scoring, AI auto-suggest with accept/dismiss
-- STAR Editor — create/edit entries with Role Guideline tagging; simplified dialog (date auto-set)
-- Guidelines Page — IC Promotion Wiki content synced via `npm run sync-wiki`, DOMPurify-sanitized
-- Metrics (MetricEvolution) — weekly + monthly LineCharts; layout-resilient PDF parser with diagnostics
-- Shout-Outs Manager — import from EML emails, manual entry, badge display
-- Documents Hub — export encrypted .portfolio files, DOCX, PDF, HTML
-- Profile — employee info, promotion targets, narrative sections
-- Timeline — chronological view of all portfolio activity
-- AI Coach — grounded suggestions (PROMO_COACH_SYSTEM), quote validation, gap analysis
-- Manager Review — authenticated share-for-review with retry/stash comment import
+- Dashboard — readiness score with next step, role-guideline and LP coverage, linked checklist, first-run guidance
+- STAR Editor — narratives tagged with LPs and Role Guidelines; "Format with AI"; AI auto-suggested guideline matches with verbatim-quote validation
+- Promotion Readiness panel — 7 guidelines per target level, deterministic scoring, coaching prompts
+- Metrics — layout-resilient GSD scorecard PDF parser with diagnostics; weekly/monthly charts
+- Guidelines — sanitised snapshot of the IC Promotion Wiki, refreshed by script
+- Documents — DOCX generation, HTML preview, `.portfolio` backup/restore
+- Manager Review — share link restricted to named reviewers (or anyone with the link), per-entry comments attributed server-side, revoke, automatic import of comments
+- Profile & Timeline — employee details, narrative sections, activity history
 
 **Technologies:**
-- React 19, TypeScript 5.9, Vite 8, MUI 7, Recharts
-- Web Crypto API (AES-256-GCM, PBKDF2)
-- docx / jsPDF (document generation)
-- DOMPurify (XSS prevention, wiki content sanitization)
-- Amazon Bedrock (Claude Haiku 4.5) via AWS Lambda + API Gateway
-- aws-jwt-verify (backend Midway JWT validation)
-- @amzn/harmony-build-tools (deployment)
-- Ollama (local AI fallback) — optional
+- React 19, TypeScript 5.9, Vite 8, MUI 7 (tokenised theme, dark mode), Recharts, react-hook-form
+- pdfjs-dist, docx, DOMPurify
+- AWS SAM: API Gateway HTTP API, Lambda (Node.js 24, arm64), DynamoDB (PITR, Retain), CloudWatch alarms, X-Ray
+- aws-jwt-verify (Midway RS256 JWT), Harmony build tools, GitHub Actions (OIDC)
+- Amazon Bedrock via a Lambda proxy (currently outside this repo)
 
 **Data stores:**
-- Browser localStorage (encrypted, per-alias namespaced) — primary client data
-- DynamoDB: promo-track-users (cloud persistence), promo-track-reviews (review sessions with TTL)
+- DynamoDB `users` (one record per alias, version counter for optimistic concurrency) and `reviews` (7-day TTL, owner and reviewer allowlist)
+- Browser localStorage per alias as the offline/working copy
 
-**External dependencies:**
-- Harmony Platform (primary static SPA deployment)
-- AWS Lambda + API Gateway (authenticated backend APIs + AI proxy)
-- Amazon Bedrock — Claude Haiku 4.5 (primary AI provider)
-- Midway (authentication — JWT validation via JWKS)
-- IC Promotion Wiki (guidelines sync source via mcurl + Midway)
-- Ollama (optional, local LLM fallback for offline/local use)
+**External dependencies:** Harmony platform, Midway, IC Promotion Wiki (sync source), Amazon Bedrock
 
-**Personnel:**
-- 1 developer (design + implementation)
-- Manager review for requirements alignment
-- Security review for encryption and data handling
+**Personnel:** 1 developer; manager review for requirements; security review of the September audit
 
-**Backfills/modifications:**
-- None — greenfield application, no existing systems modified
+**Backfills/modifications:** Prod cut-over imports the two existing DynamoDB tables into the unified stack — no data is copied or transformed.
 
 **Open questions:**
-1. ~~Should we add authentication for multi-user / cross-device support?~~ **DONE** — Midway JWT landed 2026-07-29
-2. Is DynamoDB-backed full-state persistence needed, or is client-only + userdata API sufficient?
-3. Should the DOCX export format be standardized across the organization, or remain team-configurable?
-4. What is the appetite for a manager-facing read-only view of employee portfolios?
+1. Ownership of the AI proxy (`706rf9fx5c`): bring it into this repo and behind Midway, or retire it in favour of a per-user Bedrock call?
+2. Should the DOCX export be standardised across the organisation or remain team-configurable?
+3. Appetite for a manager-facing read-only portfolio view beyond the review link?
 
 ---
 
 ## How will we measure the result?
 
 **Milestones:**
-| Milestone | Target Date | Status |
+| Milestone | Date | Status |
 |---|---|---|
-| Core app (dashboard, STAR, profile, export) | 2026-02-13 | ✅ Complete |
-| Metrics import (GSD scorecard PDF parsing) | 2026-02-13 | ✅ Complete |
-| Shout-outs (EML import, badge display) | 2026-02-18 | ✅ Complete |
-| AI integration (Ollama, gap analysis, STAR rewrite) | 2026-02-19 | ✅ Complete |
-| Security hardening (encryption, lock screen, CSP, file encryption) | 2026-02-19 | ✅ Complete |
-| Amplify deployment | 2026-02-20 | ✅ Complete |
-| Bedrock AI integration (Lambda + API Gateway) | 2026-02-20 | ✅ Complete |
-| Harmony deployment (primary) | 2026-07-21 | ✅ Complete |
-| Wiki sync + Guidelines page | 2026-07-21 | ✅ Complete |
-| Promotion Readiness rebuild (L4 Role Guidelines) | 2026-07-21 | ✅ Complete |
-| MetricEvolution (weekly/monthly LineCharts) | 2026-07-21 | ✅ Complete |
-| Metrics PDF resilient parser (V2 — label-anchored, piecewise interpolation) | 2026-07-24 | ✅ Complete |
-| Honest monthly display (unweighted average labeling + tooltip) | 2026-07-24 | ✅ Complete |
-| Readiness panel redesign (accordion cards, icons, progress rail, Coach me) | 2026-07-24 | ✅ Complete |
-| Share-for-review robustness (retry/stash, ID-primary matching) | 2026-07-22 | ✅ Complete |
-| Cache hardening (3-tier headers: no-cache / immutable / 1hr) | 2026-07-22 | ✅ Complete |
-| Midway JWT auth + per-user isolation (both APIs, CORS lock, server-side alias) | 2026-07-29 | ✅ Complete |
-| User feedback & iteration | Ongoing | 🔲 Planned |
+| Core app (dashboard, STAR, profile, export) | 2026-02-13 | ✅ |
+| Metrics import (GSD scorecard PDF) | 2026-02-13 | ✅ |
+| AI integration (gap analysis, STAR rewrite) | 2026-02-19 | ✅ |
+| Bedrock AI proxy (Lambda + API Gateway) | 2026-02-20 | ✅ |
+| Harmony deployment (beta) | 2026-07-21 | ✅ |
+| Wiki sync + Guidelines page; Readiness rebuild on Role Guidelines | 2026-07-21 | ✅ |
+| Resilient PDF parser V2; MetricEvolution charts | 2026-07-24 | ✅ |
+| Midway JWT auth + per-user isolation | 2026-07-29 | ✅ |
+| Security/tech audit phase 1: config hardening, versioned sync, table protection, runtime upgrade, lint/test gates | 2026-09-10 | ✅ |
+| Review restrictions (reviewer allowlist, revoke); prompt-injection hardening | 2026-09-10 | ✅ |
+| Unified backend stack + CI; beta deployed (Harmony 3.3.1) | 2026-09-10 | ✅ |
+| Design system tokens, dashboard redesign, component tests | 2026-09-10 | ✅ |
+| Prod cut-over to unified stack + first prod Harmony deploy | TBD | 🔲 |
+| AI proxy behind Midway | TBD | 🔲 |
+| User feedback & iteration | Ongoing | 🔲 |
 
-**Expected impact:**
-- Reduce portfolio preparation time from days to hours
-- Increase Role Guideline coverage completeness in submitted portfolios
-- Eliminate lost shout-outs through centralized collection
-- Provide real-time readiness visibility to employees and managers
+**Expected impact:** preparation time from days to hours; higher Role Guideline coverage in submissions; real-time readiness visibility for employees and managers.
 
-**KPIs / Critical metrics:**
-- Portfolio readiness score at time of submission (target: >80%)
-- Number of Role Guidelines covered per portfolio (target: all 7)
-- Time from first entry to export-ready document
-- User adoption rate within target teams
+**KPIs:** readiness score at submission (target > 80); Role Guidelines covered per portfolio (target 7/7); time from first entry to export-ready document; adoption within target teams.
 
 **Summary of design review:**
-- Architecture: client-side SPA with encrypted localStorage + authenticated serverless backend (SAM) — zero idle infrastructure cost
-- Security: Midway JWT auth on all APIs (RS256, alias binding), AES-256-GCM encryption at rest, passphrase lock screen, locked CORS, DOMPurify sanitization, AI grounding rules, per-user data isolation — overall risk rating: **LOW**
-- AI: Amazon Bedrock (Claude Haiku 4.5) via Lambda + API Gateway — data stays within AWS, ~$0.001 per request. AI is advisor-only: grounded suggestions, quote validation, no outcome predictions
-- Trade-off accepted: client-primary storage limits cross-device sync but eliminates backend complexity and data privacy concerns; userdata API provides optional cloud backup
-- Deployment: Harmony platform (primary) + SAM backend (Lambda/API Gateway/DynamoDB) + Amplify (legacy) — pay-per-use
-- Tests: 181 tests (157 frontend + 24 backend) across storage, scoring, PDF parsing, auth, review import
+- Architecture: SPA on Harmony + one serverless stack per stage; zero idle cost; beta and prod fully isolated (tables, origins, audiences)
+- Security: Midway JWT on every API call with alias binding; review links restricted and revocable; strict CSP; DOMPurify; AI input wrapped as inert data and output validated; tables retained, PITR, alarms — overall risk **LOW**, one open MEDIUM (unauthenticated AI proxy)
+- Reliability: optimistic concurrency prevents cross-device overwrites; state normalisation on load; error boundary with data export
+- Quality: 253 automated tests (unit + component + backend), lint/type gates in CI, browser E2E used for release verification
+- Cost: ≈ $3/month for the serverless backend; the legacy Ollama EC2 instance (~$122/month) is unused and should be terminated

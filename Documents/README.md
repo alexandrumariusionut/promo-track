@@ -1,122 +1,91 @@
 # PromoTrack — Promotion Portfolio Builder
 
-🚀 **Live App**: https://promo-track.harmony.a2z.com  
-🧪 **Beta**: https://promo-track.beta.harmony.a2z.com
+🧪 **Beta (current):** https://promo-track.beta.harmony.a2z.com  
+🚀 **Prod:** https://promo-track.harmony.a2z.com — not yet deployed
 
-A browser-based tool for Amazon employees to build, track, and export promotion portfolios. Authenticated via Midway — your identity is verified server-side and all data is encrypted in your browser, namespaced to your alias.
+A browser-based tool for Amazon employees to build, track and export promotion portfolios. You sign in with Midway; your identity is verified server-side and your portfolio is stored per alias both in your browser and in the cloud.
 
-**Last updated:** 2026-07-29
+**Last updated:** 2026-09-10 (app version 1.3.0, Harmony beta 3.3.1)
 
 ## What is PromoTrack?
 
-PromoTrack helps you organize your promotion materials in one place:
-- Build STAR stories mapped to L4/L5 Role Guidelines
-- Import metrics from GSD Scorecard PDFs with resilient layout-aware parsing
-- View IC Promotion Guidelines synced live from the wiki
-- Track your promotion readiness with deterministic scoring
-- Export professional documents for submission
-- Collaborate with your manager through authenticated review workflows
+- Write STAR narratives and map them to the L4/L5 Role Guidelines your promo panel looks for
+- Import metrics from GSD Scorecard PDFs with a layout-resilient parser
+- Read the IC Promotion Guidelines (synced snapshot of the wiki)
+- See a readiness score, the next step, and which guidelines still lack evidence
+- Generate the promotion document (.docx) and back up your portfolio (.portfolio JSON)
+- Share a read-only review link with your manager (restricted to named reviewers) and pull their comments back in
 - AI coaching that grounds every suggestion in your own words
 
-## Getting Started
+## Getting started
 
-1. **Open the app** at the URL above (requires active Midway session)
-2. **Set a passphrase** (minimum 6 characters) — this encrypts all your data locally
-3. **Start with Profile** — fill in your employee information
-4. **Add content** — create STAR entries, import metrics, collect shout-outs
-5. **Check Promotion Readiness** — see which Role Guidelines are well-covered
+1. Open the beta URL (needs an active Midway session).
+2. Dashboard: the first-run card walks you through guidelines → profile → first STAR entry.
+3. Profile: fill in your details and management chain. Saving syncs to the cloud (see status chip top-right).
+4. STAR Entries: add narratives; the readiness panel maps them to guidelines and AI suggests matches you confirm or dismiss.
+5. Metrics: import your GSD scorecard PDF or add metrics manually.
+6. Share for Review when ready; revoke the link any time.
 
-## Core Features
+## Core features
 
-### 📊 Promotion Readiness
-- **7 L4 Role Guidelines** from the IC Promotion Wiki's GSD2 Review list (or L5 guidelines for L5 targets)
-- **Accordion Cards**: Per-guideline MUI icon, bold lead clause, full guideline text in muted secondary
-- **Deterministic scoring**: 0 entries = "No examples yet", 1+ = "Well covered"
-- **Segmented progress rail**: 7-part accessible progress bar (solid/dashed for non-color distinction)
-- **AI auto-suggest**: Fires silently after narrative save; accept/dismiss chips with quote validation
-- **Coach me**: "What could I write for this?" button per guideline
-- **Pre-tagged flow**: Empty guidelines offer "Write a narrative for this"
-- Footer: "Also valued by reviewers: Mentoring and coaching peers · Handling difficult customer interactions"
+### Dashboard
+Readiness score out of 100 with the recommended next step, role-guideline coverage for your target level, Leadership Principle coverage, a checklist where every item links to the page that completes it, and an optional promotion target date.
 
-### 📝 STAR Entries
-Create compelling promotion stories:
-- **S**ituation: Context and background
-- **T**ask: What needed to be done
-- **A**ction: What you did
-- **R**esults: Measurable outcomes
+### STAR Entries
+Situation / Task / Action / Results, tagged with Leadership Principles and Role Guidelines. "Format with AI" rewrites an entry in a tight, senior tone; follow-up instructions are supported. AI auto-suggests guideline matches after you save, and each suggestion must quote your text verbatim or it is dropped.
 
-**Key Features**:
-- Tag entries with Role Guidelines
-- Simplified entry dialog (date auto-set)
-- AI is an advisor — never judges readiness, only highlights evidence gaps
-- Quote validation ensures AI never fabricates claims about your work
+### Promotion Readiness panel
+Seven role guidelines per target level with deterministic scoring (0 entries = no examples yet, 1+ = covered, aim for 3), "Coach me" prompts per guideline, and "Write a narrative for this" pre-tagged entry creation.
 
-### 📈 Metrics (MetricEvolution)
-Track your performance trends:
-- **Resilient PDF Import**: Layout-aware V2 parser with label-anchored per-KPI extraction, piecewise x-interpolation (recovers ~35% more data points), ISO-week dating
-- **Diagnostics**: Returns `{found, missing, warnings}` — renders summary instead of hard-failing
-- **Weekly view**: LineChart with axis labels like "W12 · Mar 17–Mar 23"
-- **Monthly view**: Ratio metrics show "Approximate — unweighted average of weekly values" with tooltip explaining volume-weighting difference; recommends dashboard for exact figures
+### Metrics
+Weekly and monthly charts per KPI with target lines. The PDF importer reports what it found, what is missing and why, instead of failing silently. Status is shown with an icon and text, not colour alone.
 
-### 📖 Guidelines
-- Content synced from the IC Promotion Wiki (`npm run sync-wiki`)
-- DOMPurify-sanitized rendering with all links opening in new tabs
-- Sync-date header shows when content was last refreshed
-- "Open live wiki" button for the authoritative source
+### Guidelines
+Snapshot of the IC Promotion Wiki, sanitised with DOMPurify, with the sync date and a link to the live page. Refresh with `npm run sync-wiki`.
 
-### 👥 Manager Review Workflow
-1. **Share for Review**: Creates authenticated session via backend API
-2. **Manager Reviews**: Opens review URL, adds comments per entry (commenter alias captured server-side)
-3. **Import Comments**: Resilient matching by ID then title fallback; retry/stash on failures
-4. **Unmatched Handling**: After 5 attempts, unmatched comments stashed and surfaced via dialog
-5. **Respond**: Comments appear on STAR cards with reply capability
+### Manager review
+- **Share for Review** creates a 7-day link. By default only the aliases you list (pre-filled from your Manager field) can open it; you can also allow anyone with the link.
+- Reviewers see your entries read-only and leave a comment per entry; their alias is recorded server-side from the Midway token.
+- Comments are pulled into your entries automatically (matched by id, then title); unmatched ones are kept and shown in a dialog.
+- **Manage review link** lets you copy, resend or revoke the link.
 
-### 🎉 Shout-Outs
-- **Email Import**: Upload .eml files to extract shout-outs
-- **Manual Entry**: Add recognition with badge types
-- **LP Mapping**: Connect shout-outs to Leadership Principles
+### Documents
+Generate the Word promotion document, preview the HTML, export a `.portfolio` backup, import a backup.
 
-### 📄 Documents & Export
-- **Portfolio Backup** (.portfolio): Encrypted backup of all your data
-- **Promotion Document** (.docx): Professional template for submission
-- **Manager Review** (HTML): Shareable format for feedback
-- **JSON Backup**: Technical backup format
+### Data & sync
+- Cloud copy per alias (DynamoDB) plus a local copy in your browser, namespaced per alias so shared machines are safe.
+- Saves are versioned: if the portfolio changed on another device or tab, you are asked whether to load the newer copy or keep yours — nothing is overwritten silently.
+- Dark mode follows your OS setting and can be toggled.
 
-### 🔒 Security & Privacy
-- **Midway JWT Authentication**: All API calls authenticated server-side (RS256, aws-jwt-verify)
-- **Per-User Isolation**: localStorage namespaced per verified alias — shared browsers are safe
-- **AES-256-GCM Encryption**: All data encrypted at rest
-- **Locked CORS**: Backend APIs accept only known origins
-- **DOMPurify**: All HTML content sanitized before rendering
-- **AI Guardrails**: Grounding rules prevent fabrication; client-side quote validation discards ungrounded suggestions
-- **No Tracking**: No cookies, analytics, or data collection beyond what Midway provides
+## Security in brief
+Midway JWT on every API call (RS256, verified server-side, alias bound to the URL); review links restricted to named reviewers and revocable; CORS locked to the Harmony origins; strict CSP; DOMPurify on all rendered HTML; AI prompts wrap your text as inert data and validate model output against the allowed guideline ids. Full detail in `SECURITY_REVIEW.md`.
 
 ## Development
 
 ```bash
-npm install          # Install dependencies
-npm run dev          # Start dev server (localhost, no auth required)
-npm test             # Run 157 frontend tests
-npm run sync-wiki    # Sync wiki content (requires mwinit)
+npm install
+cp .env.example .env.development.local   # local API + dev identity, dev server only
+npm --prefix backend install
+npm run backend:start                    # real Lambda handlers on http://127.0.0.1:3001 (in-memory DB)
+npm run dev                              # http://localhost:5173
+npm test                                 # 253 frontend + backend tests (vitest)
+npm run lint && npm run typecheck
+npm run sync-wiki                        # refresh public/content/guidelines-wiki.html (needs mwinit)
 ```
 
-### Deploy Frontend (Harmony)
+Set `VITE_SKIP_HARMONY_NAVBAR=1` in `.env.development.local` to run without a Midway session (headless tests).
+
+## Deploy
+
 ```bash
-npm run build-harmony-app    # vite build --outDir app && build-harmony
-harmony app deploy -s beta   # Deploy to beta
-harmony app deploy -s prod   # Deploy to prod
+# Backend (single SAM stack, beta)
+cd backend && npm run deploy:beta
+
+# Frontend (Harmony beta)
+npm run build-harmony-app:beta && harmony app deploy -s beta
 ```
 
-### Deploy Backend (SAM)
-```bash
-cd backend/userdata && sam build && sam deploy
-cd backend/review && sam build && sam deploy
-```
+Prod cut-over: `backend/README.md` and `Documents/DEPLOYMENT.md`. CI (`.github/workflows/ci.yml`) runs audit, lint, type-check, tests, build and `sam validate` on every PR and deploys the beta backend on `main`.
 
-## Tech Stack
-
-Built with React 19, TypeScript 5.9, Material UI 7, Vite 8, Recharts, DOMPurify, Vitest, and aws-jwt-verify. Backend: AWS SAM (Lambda + API Gateway HttpApi + DynamoDB) with Midway JWT authorizers.
-
----
-
-**Ready to build your promotion portfolio?** [Open PromoTrack](https://promo-track.harmony.a2z.com) and get started today!
+## Tech stack
+React 19, TypeScript 5.9, MUI 7, Vite 8, Recharts, react-hook-form, DOMPurify, pdfjs-dist, docx; Vitest + React Testing Library. Backend: AWS SAM — API Gateway HTTP API, Lambda (Node.js 24, arm64), DynamoDB, aws-jwt-verify.

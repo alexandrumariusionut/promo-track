@@ -1,284 +1,160 @@
 # PromoTrack — AI Technical Reference
 
-**Last updated:** 2026-07-29
+**Last updated:** 2026-09-10 (app 1.3.0 · Harmony beta 3.3.1 · branch `audit-fixes`)
 
-## Quick Facts
-- React 19 + TypeScript 5.9 (strict) + Vite 8 beta + MUI 7
-- Client-side SPA with authenticated backend APIs (review, userdata) — Midway JWT on all endpoints
-- All state in React Context + useReducer
-- Encrypted localStorage persistence (AES-256-GCM), namespaced per verified alias
-- Primary deploy: Harmony platform (`npm run build-harmony-app` → `harmony app deploy -s beta`)
-- Prod live at: promo-track.harmony.a2z.com
-- Beta live at: promo-track.beta.harmony.a2z.com
-- Legacy/secondary: AWS Amplify (`amplify.yml`, baseDirectory: `app`)
-- Tests: Vitest + jsdom (157 frontend tests) + 24 backend tests (Node.js test runner)
-- Wiki guidelines synced via `npm run sync-wiki` (mcurl + Midway)
+This document gives an AI assistant enough context to modify the codebase without exploring it. When it disagrees with the code, the code wins — update this file.
 
-## Directory Structure
+## Quick facts
+- React 19 + TypeScript 5.9 (strict) + Vite 8 (rolldown) + MUI 7. Icons are imported **per path** (`@mui/icons-material/Foo`) — the barrel import is lint-forbidden.
+- State: one `AppContext` (`useReducer`, 14 actions) with memoised value; persisted to localStorage per alias and to the cloud with optimistic concurrency.
+- Identity: Harmony `window.harmony.user.lookup()` for the alias; Midway `id_token` (in-memory only) as Bearer for the API. On the dev server, `VITE_DEV_USER` supplies a fake alias and the `X-Dev-Alias` header for the local harness.
+- Backend: **one** SAM stack (`backend/template.yaml`), one HTTP API, one Midway authorizer, 7 handler functions, 2 DynamoDB tables. Deployed as `promo-track-backend-beta`; prod still runs the two legacy stacks (see `Documents/DEPLOYMENT.md`).
+- Config: API URLs come from `src/config.ts` (`VITE_*` at build time). No runtime override exists.
+- Tests: 253 (Vitest; jsdom for `src/**`, node for `backend/tests/**`). Component tests use React Testing Library.
+- No encryption / lock screen / shout-outs remain in the code. `session.ts` rejects old `PROMO-TRACK-ENC:` files; `storage.ts` deletes encryption-era keys on migration.
+
+## Directory structure
 ```
 promo-track/
 ├── src/
-│   ├── App.tsx                    # Root: ErrorBoundary → ThemeModeProvider → LockScreen | AppProvider → Router
-│   ├── types/index.ts             # ALL type definitions
-│   ├── content/
-│   │   └── guidelines-wiki.ts     # Synced wiki HTML + WIKI_SYNCED_AT + WIKI_SOURCE_URL
-│   ├── data/
-│   │   ├── levelGuidelines.ts     # L4/L5 Role Guidelines (7 rows each), BONUS_TAGS
-│   │   └── __tests__/leadClause.test.ts  # Enforces leadClause is verbatim substring of guideline name
+│   ├── main.tsx / App.tsx           # boot(): Harmony user → cloud record (5 s) → localStorage; lazy routes; 404 → /
+│   ├── config.ts                    # REVIEW_API_URL, USERDATA_API_URL, AI_API_URL, AI_DEFAULT_MODEL, DEV_USER, APP_NAME
+│   ├── vite-env.d.ts
+│   ├── types/index.ts               # LEADERSHIP_PRINCIPLES, JobLevel, UserProfile, STAREntry, Metric, AppState, …
+│   ├── data/levelGuidelines.ts      # GUIDELINES{L4,L5} (7 each), BONUS_TAGS, id maps for migrations
 │   ├── store/
-│   │   ├── AppContext.tsx          # State management: 15 actions, activity logging, auto-persist
-│   │   ├── storage.ts              # localStorage: encrypt/decrypt, passphrase, per-alias namespace, migration
-│   │   └── ThemeContext.tsx         # Dark/light theme toggle
+│   │   ├── AppContext.tsx            # reducer + provider: debounced versioned cloud save, syncConflict, reloadFromCloud, forceCloudSave
+│   │   ├── storage.ts                # per-alias keys, loadState/saveState, normalizeState(), migrations
+│   │   └── ThemeContext.tsx          # buildTheme(mode): tokens (brand, surface), dark surfaces, focus ring, reduced motion
+│   ├── context/OnboardingContext.tsx # stage 0-3, CELEBRATION_MESSAGES, PROGRESSIVE_UNLOCK_ENABLED=false (all tabs open)
+│   ├── hooks/useReviewPolling.ts     # 30 s poll while a review link is pending; merges comments
 │   ├── utils/
-│   │   ├── ai.ts                   # AI: config, allowlist, checkConnection, chat (rate limited)
-│   │   ├── aiPrompts.ts            # PROMO_COACH_SYSTEM prompt, suggestDimensions, gap coaching
-│   │   ├── apiFetch.ts             # Authenticated fetch: Bearer token + 401 auto-retry
-│   │   ├── crypto.ts               # AES-256-GCM encrypt/decrypt, PBKDF2 key derivation, hashPassphrase
-│   │   ├── dimensionScoring.ts     # Deterministic scoring: 0 entries = 'No examples yet', 1+ = 'Well covered'
-│   │   ├── midwayAuth.ts           # Midway SSO token fetch, in-memory cache, refresh on 401
-│   │   ├── session.ts              # Portfolio export (encrypted) / import (with migration)
-│   │   ├── pdfImport.ts            # Thin wrapper: exports extractPDFText, extractPDFItems, parseGSDMetricsV2
-│   │   ├── pdfImportV2.ts          # Layout-resilient parser: label-anchored, per-KPI, ISO-week dating, piecewise x-interpolation
-│   │   ├── reviewImport.ts         # consumeReview(): retry/stash, match by ID then title, 5-attempt cap
-│   │   ├── docPreview.ts           # generatePreviewHTML (with data-entry-id, review comments)
-│   │   ├── docExport.ts            # generateDocx (Word document generation)
-│   │   ├── helpers.ts              # getQuarter, lpCoverage, readinessScore
-│   │   ├── starrTemplates.ts       # STARR_TEMPLATES array, createFromTemplate
-│   │   ├── emlParser.ts            # parseShoutOutEml (Amazon email parsing)
-│   │   ├── reviewApi.ts            # Backend: authenticated review session API
-│   │   └── userDataApi.ts          # Backend: authenticated user data API
+│   │   ├── apiFetch.ts               # Bearer attach, 401 retry, X-Dev-Alias in dev
+│   │   ├── midwayAuth.ts             # silent SSO token fetch, in-memory cache
+│   │   ├── harmonyUser.ts            # Harmony user or DEV_USER
+│   │   ├── userDataApi.ts            # loadUserData → {data,version,updatedAt}; saveUserData(userId,data,expectedVersion) → 409 ConflictError
+│   │   ├── reviewApi.ts              # createReviewSession({…,reviewerAliases}), getReview, submitComments, checkReviewStatus, revokeReviewSession
+│   │   ├── reviewImport.ts           # consumeReview(): match by id → title, retry/stash after 5 attempts
+│   │   ├── ai.ts                     # getAIConfig/saveAIConfig (endpoint allowlist: build endpoint, localhost, /api/*), chat(), chatMessages()
+│   │   ├── aiPrompts.ts              # asData()/dataBlock() injection defence, PROMO_COACH_SYSTEM, suggestDimensions, qualityChecklist, gapCoaching, PROMPTS.*, parseSuggestDimensionsResponse()
+│   │   ├── dimensionScoring.ts       # scoreDimensions(), validateSuggestions() (verbatim-quote check)
+│   │   ├── pdfImport.ts / pdfImportV2.ts # GSD scorecard parser (label-anchored, ISO weeks, diagnostics)
+│   │   ├── docExport.ts / docPreview.ts # DOCX generation (lazy-loaded), HTML preview
+│   │   ├── session.ts                # export/import .portfolio (JSON; reviver blocks __proto__/constructor/prototype)
+│   │   ├── wikiContent.ts            # fetch /content/guidelines-wiki.{html,meta.json}
+│   │   ├── alias.ts                  # normalizeAlias('Bob@amazon.com') → 'bob'
+│   │   ├── motion.ts                 # prefersReducedMotion()
+│   │   ├── helpers.ts                # getQuarter, lpCoverage, readinessScore
+│   │   └── starrTemplates.ts
 │   ├── components/
-│   │   ├── ErrorBoundary.tsx        # Class component, wraps entire app
-│   │   ├── ErrorSnackbar.tsx        # showError() global function
-│   │   ├── UndoSnackbar.tsx         # showUndo() global function
-│   │   ├── LockScreen.tsx           # Passphrase setup/unlock + Open Portfolio File
-│   │   ├── MetricEvolution.tsx      # Weekly + monthly LineCharts (axis: 'W12 · Mar 17–Mar 23' / 'March 2026')
-│   │   ├── PageTip.tsx              # Collapsible help tips
-│   │   ├── WordCount.tsx            # Word counter for text fields
-│   │   ├── layout/Layout.tsx        # Nav sidebar, top bar, import/export in nav
-│   │   ├── ai/AIAssistant.tsx       # AI panel: connection check, gap analysis, scope draft
-│   │   ├── ai/ImproveSTARRButton.tsx # AI STARR improvement with streaming
-│   │   └── starr/
-│   │       ├── STARRCard.tsx         # Card with view/edit/duplicate/delete + comment badge
-│   │       ├── STARRFormDialog.tsx   # Simplified: no Date/Impact Level/Evidence inputs; date auto-set
-│   │       ├── DimensionCoveragePanel.tsx  # Readiness panel: 7 Role Guideline cards, progress rail, AI suggestions
-│   │       └── TemplatePickerDialog.tsx
-│   └── pages/
-│       ├── DashboardPage.tsx        # LP radar, portfolio tracker, walkthrough video
-│       ├── STARRPage.tsx            # STAR entries + DimensionCoveragePanel (readiness) + AI auto-suggest
-│       ├── MetricsPage.tsx          # PDF import (V2 parser), MetricEvolution card, diagnostics display
-│       ├── ShoutOutsPage.tsx        # EML import, manual add
-│       ├── GuidelinesPage.tsx       # Wiki content (DOMPurify-sanitized), sync-date header, Open wiki button
-│       ├── DocumentsPage.tsx        # Export/import portfolio, DOCX, HTML review, comment import
-│       ├── ProfilePage.tsx          # User profile form, thresholds, reset
-│       ├── TimelinePage.tsx         # Activity log + STARR + shout-outs with filters
-│       └── FAQPage.tsx              # Accordion FAQ
+│   │   ├── ErrorBoundary.tsx         # reload / export my data / reset local copy
+│   │   ├── ErrorSnackbar.tsx, UndoSnackbar.tsx  # showError()/showUndo() registered in effects
+│   │   ├── MetricEvolution.tsx       # weekly/monthly LineCharts, theme-aware colours
+│   │   ├── PageTip.tsx, WordCount.tsx
+│   │   ├── layout/Layout.tsx         # AppBar, drawer, skip link, sync chip, conflict banner, Suspense around <Outlet/>
+│   │   ├── onboarding/{OnboardingProgress,CelebrationOverlay,TrophyModal}.tsx
+│   │   ├── ai/{AIAssistant,ImproveSTARRButton}.tsx
+│   │   ├── starr/{STARRCard,STARRFormDialog,DimensionCoveragePanel,TemplatePickerDialog,ShareReviewDialog}.tsx
+│   │   └── __tests__/{Dashboard,ShareReviewDialog}.test.tsx
+│   └── pages/ Dashboard, STARR, Metrics, Documents, Profile, FAQ, Guidelines, Review, Timeline
+├── public/
+│   ├── content/guidelines-wiki.html + .meta.json   # wiki snapshot (npm run sync-wiki)
+│   ├── favicon.svg, pdf.worker.min.mjs, walkthrough.mov, wiki-assets/
 ├── backend/
-│   ├── userdata/
-│   │   ├── template.yaml           # SAM: HttpApi + MidwayAuth authorizer + DynamoDB (promo-track-users)
-│   │   ├── src/authorizer.mjs      # Midway JWT verification (aws-jwt-verify, RS256, JWKS)
-│   │   ├── src/get.mjs             # GET /userdata/{userId} — alias validated against token
-│   │   ├── src/save.mjs            # PUT /userdata/{userId} — 1MB limit, alias binding
-│   │   └── tests/                  # 18 tests (authorizer + handlers)
-│   └── review/
-│       ├── template.yaml           # SAM: HttpApi + MidwayAuth authorizer + DynamoDB (promo-track-reviews, TTL)
-│       ├── src/authorizer.mjs      # Midway JWT verification (same pattern)
-│       ├── src/create.mjs          # POST /reviews — creates session
-│       ├── src/get.mjs             # GET /reviews/{sessionId}
-│       ├── src/comments.mjs        # POST /reviews/{sessionId}/comments — 4KB/200 limits, commenterAlias from token
-│       ├── src/status.mjs          # GET /reviews/{sessionId}/status
-│       └── tests/                  # 6 tests (handlers)
-├── scripts/
-│   └── sync-wiki.mjs               # Fetches IC Promotion Wiki via mcurl + Midway (xpage=plain)
-├── package.json
-├── vite.config.ts                   # React plugin + Harmony build tools
-├── vitest.config.ts                 # jsdom env, globals, setup file
-├── amplify.yml                      # Legacy/secondary: 3-tier cache headers + CSP (no localhost in prod)
-└── .harmony/harmony-metadata.json   # Harmony CSP (midway-auth + API endpoints)
+│   ├── template.yaml                # single stack; Stage, AllowedOrigins, AlarmEmail, *TableName params
+│   ├── samconfig.toml               # [beta] / [prod] deploy envs
+│   ├── package.json                 # aws-jwt-verify; dev: aws-sdk v3, esbuild, express, cors
+│   ├── src/authorizer.mjs           # Midway JWT (RS256, JWKS w/ use:sig patch), stageWildcardArn() for cached policies
+│   ├── src/lib/http.mjs             # respond/error/serverError/callerAlias/parseJsonBody/assertOwner/canAccessReview/isExpired
+│   ├── src/review/{create,get,comments,status,revoke}.mjs
+│   ├── src/userdata/{get,save}.mjs
+│   ├── local/                       # dev harness: Express → real handlers; in-memory DynamoDB via module hook
+│   ├── local-server.mjs             # npm start → http://127.0.0.1:3001
+│   ├── tests/*.test.mjs             # vitest, 44 tests
+│   └── README.md                    # routes, local dev, prod cut-over runbook
+├── .github/workflows/ci.yml         # audit, lint, tsc, tests, build, sam validate; OIDC beta deploy on main
+├── .harmony/harmony-metadata.json   # CSP object + X-Content-Type-Options (only approved header)
+├── .env.example, .env.beta          # dev template; beta build endpoints
+├── vite.config.ts                   # navbar plugin (skippable in dev), manualChunks (react/mui/charts/docx/pdfgen/mammoth)
+├── vitest.config.ts                 # projects: frontend (jsdom) + backend (node)
+└── amplify.yml                      # legacy Amplify build (audit/lint/test gated)
 ```
 
-## Key Features (Current State)
+## Data model (types/index.ts)
+- `UserProfile`: id, name, email, role, level, targetLevel (`'L3'|'L4'|'L5'|'L6'`), proposedTitle, manager, team, startDate, targetPromotionDate, effectiveQuarter, steamMember, steamDirect, promotionApprover
+- `STAREntry`: id, title, situation, task, action, results, principles[], date, quarter, impactLevel, evidenceLinks[], dimensions?[] (guideline ids), themes?[], aiSuggestedDimensions?, customFields?, hiddenFields?, reviewComments?[], levelDimension? (legacy)
+- `Metric`: id, type, value, target, date, period (`weekly|monthly|quarterly`), notes, channel
+- `AppState`: profile, star[], metrics[], scopeOfRole, bestReasonsNotToPromote, additionalInfo, activityLog?, dimensionAnalysis?
+- `CURRENT_VERSION = 2`, `APP_VERSION = '1.1.0'` (portfolio file format)
 
-### Authentication & Data Isolation (NEW — 2026-07-29)
-- **Midway JWT:** `src/utils/midwayAuth.ts` fetches id_token silently from `midway-auth.amazon.com/SSO` using browser's Midway cookie
-- **Token Caching:** In-memory only (never localStorage); refreshes 60s before expiry or on 401
-- **apiFetch:** `src/utils/apiFetch.ts` wraps all API calls with Bearer header; retries once on 401 with refreshed token
-- **Per-User Isolation:** localStorage keys namespaced `promo-track-<alias>:data`; one-shot migration of legacy keys
-- **Backend Enforcement:** Handlers read alias from `event.requestContext.authorizer.lambda.alias`; URL path alias must match (403)
+## State (AppContext.tsx)
+Actions: `SET_PROFILE, ADD_STAR, UPDATE_STAR, DELETE_STAR, ADD_METRIC, DELETE_METRIC, IMPORT_METRICS, SET_SCOPE_OF_ROLE, SET_BEST_REASONS, SET_ADDITIONAL_INFO, LOAD_STATE, RESET_STATE, SET_DIMENSION_ANALYSIS, SET_ENTRY_AI_SUGGESTIONS`.
 
-### Promotion Readiness (DimensionCoveragePanel — STAR Entries tab)
-- **Rows:** 7 verbatim L4 Role Guidelines (or L5 if targetLevel=L5) from the wiki's GSD2 Review list
-- **Guidelines:** Troubleshoot without SOPs; Small Projects; CMs; Higher Permissions; Root Cause & Automation; Tradeoffs; KB Authoring
-- **Icons:** Per-guideline MUI icons (BugReport, RocketLaunch, PublishedWithChanges, AdminPanelSettings, Psychology, Balance, MenuBook)
-- **Scoring:** Deterministic Rule-of-Three: 0 entries = 'No examples yet', 1+ = 'Well covered'
-- **UI:** Accordion Cards (outlined MUI Card); bold LEAD CLAUSE (verbatim substring, enforced by unit test); full guideline in muted text
-- **Progress Rail:** Segmented 7-part header bar (role=progressbar; solid/dashed segments for accessibility)
-- **AI Auto-suggest:** Fires silently on narrative save; chips for accept/dismiss; 'Coach me' and 'Write a narrative for this' CTAs
-- **Quote Validation:** `validateSuggestions()` discards suggestions whose quotes don't appear verbatim in entry (≥20 chars, whitespace/case normalized)
-- **Footer:** "Also valued by reviewers: Mentoring and coaching peers · Handling difficult customer interactions"
-- **Level-Aware:** Header title uses `{targetLevel}` so L5 users see "L5 Role Guidelines"
+Persistence:
+1. Every state change → `saveState()` to `promo-track-<alias>:data`.
+2. With a `userId`, a 2 s debounce → `saveUserData(userId, state, versionRef)` with `If-Match`. Server returns the new `version`.
+3. `409` → `syncConflict=true`, cloud sync pauses, `Layout` shows "Load newer copy / Keep mine" (`reloadFromCloud()` / `forceCloudSave()`).
+4. Boot (`App.tsx`): cloud record wins when present and is passed through `normalizeState()`; otherwise localStorage, pre-filled with the Harmony name/email.
 
-### Metrics (MetricEvolution) — PDF Import V2
-- **Parser:** `pdfImportV2.ts` — layout-resilient, label-anchored per-KPI extraction
-- **Features:** Alias regexes per KPI, week-label-scoped regions, ISO-week dating, piecewise x-interpolation (recovers ~35% more data points vs. old nearest-tick), per-KPI aggregate fallback
-- **Return Type:** `{metrics, diagnostics:{found, missing, warnings}}` — MetricsPage renders diagnostics summary instead of hard-failing
-- **Wrapper:** `pdfImport.ts` re-exports V2 as thin API (`extractPDFText`, `extractPDFItems`, `parseGSDMetricsV2`)
-- **Monthly View:** Ratio metrics (CSAT, ARR, CONC%, XFER%, Quality, Contacts Missed %) labeled "Approximate — unweighted average of weekly values" with tooltip explaining volume weighting difference
-- **Tests:** 43+ test cases in `pdfImportV2.test.ts` (perturbation: anchor rename, coordinate translation/scale, missing label, column swap, stray numbers; golden test against real PDF)
+## Backend contract
+| Route | Auth/ownership | Notes |
+|---|---|---|
+| `GET /userdata/{alias}` | alias must equal token `sub` (403) | `{data, version, updatedAt}` |
+| `PUT /userdata/{alias}` | same; optional `If-Match: <version>` | 1 MB max; 409 on version mismatch; `{success, version, updatedAt}` |
+| `POST /reviews` | any authenticated user | body `{entries, employeeName, targetLevel, reviewerAliases?}`; ≤100 entries, ≤10 aliases; stores `ownerAlias`; TTL 7 d |
+| `GET /reviews/{id}` | owner, or listed reviewer, or anyone if list empty; otherwise **404** | returns `isOwner` |
+| `GET /reviews/{id}/status` | same | comments only when `status='reviewed'` |
+| `POST /reviews/{id}/comments` | same | per-entry merge `SET comments.#k = :v`; 4 KB/comment, ≤200 |
+| `DELETE /reviews/{id}` | owner only (condition expression) | revoke |
+Errors: 500 bodies are always `{"error":"Internal server error"}`; details go to structured logs. CORS is API-level only (handlers set no CORS headers).
 
-### Guidelines Page
-- Content synced from IC Promotion Wiki via `npm run sync-wiki` (scripts/sync-wiki.mjs)
-- Uses mcurl with Midway session, fetches `?xpage=plain` endpoint
-- Output: `src/content/guidelines-wiki.ts` (WIKI_HTML, WIKI_SYNCED_AT, WIKI_SOURCE_URL)
-- Rendered with DOMPurify sanitization; all links `target=_blank rel=noopener`
+## AI integration
+- Default provider Bedrock (Claude Haiku 4.5) via `AI_API_URL` (`706rf9fx5c` — **unauthenticated, not in repo, open item**); Ollama for local dev via the Vite `/api/ai` proxy. Endpoint override limited to the build endpoint, `localhost`, `/api/*`.
+- All user text goes through `asData()` (delimiter stripping, length caps) inside `<<<USER_DATA … USER_DATA>>>` blocks; every system prompt carries `INJECTION_DEFENSE`.
+- `parseSuggestDimensionsResponse(raw, allowedIds)` tolerates fences/prose, drops unknown ids, caps 3 suggestions/400 chars; then `validateSuggestions()` requires a verbatim ≥20-char quote.
+- Rate limit 2 s between calls (`chat`, `chatMessages`).
 
-### Manager Review Workflow
-- **Share for Review:** Creates DynamoDB session via authenticated API; generates UUID-based review URL
-- **Import Robustness:** `consumeReview()` with retry/stash — transient errors don't wipe pending-review key
-- **Matching:** Comments matched by ID (primary) then unambiguous title (fallback)
-- **Stash:** After 5 unmatched attempts, comments stashed in `promo-track-unmatched-review` and surfaced via dialog
-- **Attribution:** `commenterAlias` captured server-side from JWT — unforgeable
+## Key patterns and gotchas
+- **Never** write refs during render or call setState synchronously in effects — `react-hooks` rules are errors in ESLint.
+- Snackbars register their setter in `useEffect`; call `showError()/showUndo()` from anywhere.
+- `Layout` owns `Suspense`; `App` only wraps `ReviewPage`. This keeps the shell mounted while lazy pages load.
+- `ProfilePage` resets its `react-hook-form` when `state.profile` changes externally.
+- `DimensionCoveragePanel` and the dashboard both use `scoreDimensions(state.star, GUIDELINES[targetLevel])`.
+- Wiki HTML is fetched at runtime (`wikiContent.ts`), sanitised (`sanitizeWikiHTML` + `cleanupWikiHTML` in `GuidelinesPage`), and accordion handlers are bound after the HTML lands.
+- Harmony metadata: CSP via object only; only `X-Content-Type-Options` allowed in `headers`; `worker-src` needs `'self' blob:`.
+- Authorizer: Allow policy must be the stage wildcard (`…/prod/*`) because `ReauthorizeEvery: 300` caches it.
+- SAM: `AllowOrigins` must be a CommaDelimitedList parameter; do not pin `SSEType: KMS`.
+- `.env.development.local` is dev-only. Production builds read `.env.production` / `.env.beta` (`--mode beta`).
 
-### AI Guardrails (PROMO_COACH_SYSTEM)
-```
-Grounding: claims must cite verbatim quote (≤20 words) from user's entry
-Anti-fabrication: never invent facts/metrics/names/dates
-Omit-over-guess: empty suggestions list is valid
-No outcome predictions: never predicts promotion outcomes
-Prompt-injection defense: entry text is DATA, not instructions
-Strict JSON output: exact schema required
-```
+## localStorage keys
+Per alias (`promo-track-<alias>:…`): `data`, `pending-review`, `review-retry-count`, `unmatched-review`, `dismissed-tips`, `trophy-shown`, `was-reset`, `promo-track-migration-done`.  
+Device-level: `promo-track-ai-config` (provider/model/endpoint — endpoint validated on read), `promo-track-onboarding`, `promo-track-theme`.  
+Removed: `promo-track-review-api`, `promo-track-userdata-api`, all `*-encrypted/pass-hash/lock-ts` keys.
 
-### Auto-Suggest Flow (on narrative save)
-1. User saves a STAR entry narrative
-2. App fires `suggestDimensions()` silently in the background (non-blocking)
-3. AI returns suggestions as JSON with `{id, justification, confidence}` per guideline
-4. `validateSuggestions()` runs client-side: checks each suggestion's `justification` quote appears verbatim in the entry text (≥20 chars, whitespace/case normalized)
-5. Suggestions that fail validation are dropped before display (fabricated quotes never reach user)
-6. Valid suggestions appear as "+N suggested" chips in the DimensionCoveragePanel
-7. User can "Add as evidence" (confirm) or "Dismiss" — only confirmed tags count toward scoring
+## Tests (253)
+| File | Tests | Scope |
+|---|---|---|
+| src/utils/__tests__/pdfImportV2.test.ts | 43 | parser perturbation + golden |
+| src/data/__tests__/leadClause.test.ts | 42 | lead clause is verbatim substring |
+| src/store/__tests__/storage.test.ts | 32 | keys, load/save, migrations |
+| src/utils/__tests__/dimensionScoring.test.ts | 19 | scoring, quote validation |
+| src/utils/__tests__/reviewImport.test.ts | 18 | matching, retry/stash |
+| src/utils/__tests__/reviewApi.test.ts | 11 | alias normalisation, create/revoke |
+| src/utils/__tests__/aiPrompts.test.ts | 9 | data blocks, response parser |
+| src/utils/__tests__/midwayAuth.test.ts | 9 | token fetch/cache |
+| src/store/__tests__/storageMigration.test.ts | 8 | legacy key migration |
+| src/utils/__tests__/apiFetch.test.ts | 7 | Bearer + 401 retry |
+| src/components/__tests__/ShareReviewDialog.test.tsx | 4 | allowlist, create, revoke |
+| src/components/__tests__/Dashboard.test.tsx | 4 | first run, next step, links, debounced versioned save |
+| src/utils/__tests__/pdfImport.test.ts | 3 | wrapper |
+| backend/tests/review.handlers.test.mjs | 19 | access control, merge, revoke, no leakage |
+| backend/tests/userdata.handlers.test.mjs | 14 | ownership, If-Match/409, limits |
+| backend/tests/authorizer.test.mjs | 11 | allow/deny matrix, stage wildcard |
 
-## Type Definitions (types/index.ts)
+Run: `npm test` · `npm run test:backend` · `npm run test:coverage`. Browser E2E scripts used for the September verification live outside the repo (Playwright + installed Chrome against `npm run dev` + `npm run backend:start`).
 
-### Constants
-```typescript
-LEADERSHIP_PRINCIPLES = [
-  'Customer Obsession', 'Ownership', 'Invent and Simplify', 'Are Right, A Lot',
-  'Learn and Be Curious', 'Hire and Develop the Best', 'Insist on the Highest Standards',
-  'Think Big', 'Bias for Action', 'Frugality', 'Earn Trust', 'Dive Deep',
-  'Have Backbone; Disagree and Commit', 'Deliver Results', 'Strive to be Earth\'s Best Employer',
-  'Success and Scale Bring Broad Responsibility'
-] // 16 items
-
-CURRENT_VERSION = 2
-```
-
-### Core Types
-```typescript
-type LeadershipPrinciple = typeof LEADERSHIP_PRINCIPLES[number]
-type JobLevel = 'L3' | 'L4' | 'L5' | 'L6'
-```
-
-## State Management (AppContext.tsx)
-
-### All 15 Actions
-```typescript
-type Action =
-  | { type: 'SET_PROFILE'; payload: UserProfile }
-  | { type: 'ADD_STARR'; payload: STARREntry }
-  | { type: 'UPDATE_STARR'; payload: STARREntry }
-  | { type: 'DELETE_STARR'; payload: string }
-  | { type: 'ADD_METRIC'; payload: Metric }
-  | { type: 'DELETE_METRIC'; payload: string }
-  | { type: 'IMPORT_METRICS'; payload: Metric[] }
-  | { type: 'ADD_SHOUTOUT'; payload: ShoutOut }
-  | { type: 'DELETE_SHOUTOUT'; payload: string }
-  | { type: 'SET_SCOPE_OF_ROLE'; payload: string }
-  | { type: 'SET_BEST_REASONS'; payload: string }
-  | { type: 'SET_ADDITIONAL_INFO'; payload: string }
-  | { type: 'SET_THRESHOLDS'; payload: PortfolioThresholds }
-  | { type: 'LOAD_STATE'; payload: AppState }
-  | { type: 'RESET_STATE'; payload: AppState }
-```
-
-## Key Patterns
-
-### Authentication Flow
-- `midwayAuth.ts`: fetches id_token from `midway-auth.amazon.com/SSO` with `credentials:'include'`
-- Token cached in-memory (module-scope variable); refreshed 60s before expiry
-- `apiFetch.ts`: attaches `Authorization: Bearer <token>`; on 401 calls `refreshOnUnauthorized()` and retries once
-- On localhost: gracefully returns null (no token), allowing offline dev
-
-### Encryption Flow
-- PBKDF2 (100k iterations, SHA-256) derives AES key from passphrase
-- Static salt: 'promo-track-v1'
-- Random 12-byte IV per encryption
-- Portfolio files prefixed with 'PROMO-TRACK-ENC:'
-
-### AI Integration
-- Providers: ollama, bedrock, remote
-- Default: bedrock with Claude Haiku 4.5 via API Gateway
-- Endpoint allowlist: /api/*, localhost, 127.0.0.1, *.amazonaws.com
-- Rate limit: 2s between chat() calls
-
-### Build & Deploy
-```bash
-# Primary (Harmony platform):
-npm run build-harmony-app    # vite build --outDir app && build-harmony
-harmony app deploy -s beta   # Deploy to promo-track.beta.harmony.a2z.com
-
-# Backend (SAM):
-cd backend/userdata && sam build && sam deploy
-cd backend/review && sam build && sam deploy
-
-# Legacy (Amplify — secondary):
-# amplify.yml: npm run build → artifacts from app/
-```
-
-### Wiki Sync
-```bash
-npm run sync-wiki    # Requires active Midway session (mwinit first)
-```
-
-## localStorage Keys (per-alias namespaced)
-- **promo-track-\<alias\>:data**: Main encrypted data (AES-GCM ciphertext)
-- **promo-track-pass-hash**: SHA-256 hash of passphrase
-- **promo-track-lock-ts**: last activity timestamp
-- **promo-track-was-reset**: reset flag
-- **promo-track-ai-config**: AI provider config
-- **promo-track-review-api**: optional override for review API URL
-- **promo-track-userdata-api**: optional override for userdata API URL
-- **promo-track-unmatched-review**: stashed unmatched review comments (after 5 retry attempts)
-
-## Test Files
-- **src/store/__tests__/storage.test.ts**: 32 tests
-- **src/store/__tests__/storageMigration.test.ts**: 8 tests (legacy key migration)
-- **src/utils/__tests__/dimensionScoring.test.ts**: 19 tests (validateSuggestions, scoring logic)
-- **src/utils/__tests__/pdfImportV2.test.ts**: 43 tests (perturbation, golden, edge cases)
-- **src/utils/__tests__/pdfImport.test.ts**: 3 tests (wrapper exports)
-- **src/utils/__tests__/reviewImport.test.ts**: 18 tests (matchComments, consumeReview)
-- **src/utils/__tests__/midwayAuth.test.ts**: 9 tests (token fetch, cache, refresh)
-- **src/utils/__tests__/apiFetch.test.ts**: 7 tests (Bearer attach, 401 retry)
-- **src/data/__tests__/leadClause.test.ts**: 3 tests (lead clause is verbatim substring)
-- **backend/userdata/tests/authorizer.test.mjs**: 10 tests
-- **backend/userdata/tests/handlers.test.mjs**: 8 tests
-- **backend/review/tests/handlers.test.mjs**: 6 tests
-- Run: `npm test` / `npm run test:watch` / `npm run test:coverage`
-
-## Known Quirks
-- **STARRFormDialog field mapping**: Uses 'result' (singular) in FormState but 'results' (plural) in STARREntry
-- DOMPurify used for both wiki rendering and HTML export sanitization
-- `vite.config.ts` includes Harmony build tools plugins (`importNavbar`, `setDevCookies`)
-- Backend authorizer uses custom `MidwayJwksCache` that injects `use: "sig"` because Midway JWKS omits it
-
-## Dependencies (package.json highlights)
-- **React 19** + **TypeScript 5.9** + **Vite 8 beta** + **MUI 7**
-- **dompurify** (pinned ^3.4.12) — HTML sanitization
-- **Recharts** for MetricEvolution charts
-- **docx** for Word generation
-- **pdfjs-dist** for PDF positional parsing
-- **@amzn/harmony-build-tools** (dev) — Harmony platform build integration
-- **react-hook-form** + **yup** for form validation
-- **aws-jwt-verify** (backend) — Midway JWT validation
-
-This document provides complete technical context for AI assistants to understand and modify the PromoTrack codebase without exploration.
+## Open items
+1. AI proxy behind Midway (needs its SAM template in `backend/`; then route `ai.ts` through `apiFetch`).
+2. Prod cut-over to the unified stack (`backend/README.md`).
+3. `git filter-repo` to purge `Shout-Out/*.eml`, `one pager.png`, `.aws-sam/` from history.
+4. Deferred refactors: STAR editor as drawer/page, split `STARRFormDialog`/`DimensionCoveragePanel`/`GuidelinesPage`, selector hooks over `AppContext`, tighter `Metric` types, Vite stable, anonymise GSD test fixture.

@@ -1,10 +1,10 @@
 # PromoTrack Security Posture Document
 
-**Version:** 8.0  
-**Date:** 2026-07-29  
-**Application Version:** 3.0.0  
-**Overall Risk Rating:** LOW  
-**Last reviewed:** 2026-07-29
+**Version:** 9.0  
+**Date:** 2026-09-10  
+**Application Version:** 1.3.0 (Harmony beta 3.3.1, backend stack `promo-track-backend-beta`)  
+**Overall Risk Rating:** LOW (one open MEDIUM: unauthenticated AI proxy)  
+**Last reviewed:** 2026-09-10
 
 ## 1. Executive Summary
 
@@ -13,25 +13,29 @@ PromoTrack is a single-page application (SPA) deployed on the Harmony platform f
 The application implements comprehensive security controls including:
 - **Server-side authentication**: Midway JWT validation (RS256, aws-jwt-verify) on both backend HttpApis
 - **Per-user data isolation**: localStorage namespaced by verified alias; server-side alias enforcement
-- **AES-256-GCM encryption** for all data at rest in localStorage
-- **Locked CORS**: Explicit origin allowlist (no wildcard)
+- **Build-time configuration**: API endpoints fixed at build time (`src/config.ts`); no runtime/localStorage override
+- **Review access control**: sessions carry `ownerAlias` and an optional reviewer allowlist; owner can revoke; comments merged per entry
+- **Optimistic concurrency**: versioned saves (`If-Match` → 409) prevent cross-device overwrites
+- **Locked CORS**: Explicit origin allowlist per stage (no wildcard), configured at API level only
 - **Input validation**: Size limits enforced server-side (1MB userdata, 4KB comments, 200 comments/session)
-- **AI guardrails**: PROMO_COACH_SYSTEM grounding + client-side quote validation
+- **AI guardrails**: PROMO_COACH_SYSTEM grounding, delimited user-data blocks, strict response parsing against allowed guideline ids, client-side quote validation
+- **Data durability**: DynamoDB tables with `DeletionPolicy: Retain`, PITR, deletion protection (prod); alarms and access logs
 
-The app is deployed on the Harmony platform at `promo-track.harmony.a2z.com` (prod) and `promo-track.beta.harmony.a2z.com` (beta). Backend APIs are SAM-deployed Lambda functions behind API Gateway HttpApis in eu-west-1 (account 029465354181).
+The app is deployed on the Harmony platform: `promo-track.beta.harmony.a2z.com` (beta, version 3.3.1, backed by the unified stack `promo-track-backend-beta`) and `promo-track.harmony.a2z.com` (prod, not yet deployed; the legacy 2026-07-29 backend stacks still serve prod data until the cut-over). Backend: one AWS SAM stack per stage (API Gateway HTTP API + Lambda nodejs24.x + DynamoDB) in eu-west-1 (account 029465354181).
 
 ## 2. Data Classification
 
-| Data Type | Classification | Encrypted at Rest | Description |
-|-----------|---------------|-------------------|-------------|
-| Employee PII | Confidential | ✅ | Names, employee IDs, manager information |
-| STAR Entries | Confidential | ✅ | Performance data, achievements, project details |
-| Performance Metrics | Confidential | ✅ | Ratings, scores, evaluation data |
-| Shout-outs | Internal | ✅ | Recognition and praise entries |
-| Review Comments | Confidential | ✅ (client) + DynamoDB (server) | Manager feedback — commenterAlias captured server-side |
-| Exported Files | Confidential | ✅ | Portfolio exports with encryption marker |
-| AI Configuration | Internal | ✅ | Endpoint URLs, rate limiting settings |
-| Wiki Guidelines Content | Internal | ❌ | Synced from IC Promotion Wiki (sanitized at render) |
+| Data Type | Classification | At rest | Description |
+|-----------|---------------|---------|-------------|
+| Employee PII | Confidential | DynamoDB (AWS-owned key encryption, PITR) + browser localStorage (plaintext, per-alias key, Midway-gated host) | Names, roles, manager and STEAM chain |
+| STAR Entries | Confidential | as above; review copies in `reviews` table with 7-day TTL | Performance narratives, project details |
+| Performance Metrics | Confidential | as above | GSD scorecard values |
+| Review Comments | Confidential | `reviews` table; merged into the owner's record on import | Manager feedback with server-attributed `commenterAlias` |
+| Exported Files | Confidential | user's filesystem (plain JSON `.portfolio`, `.docx`) | Users are responsible for handling |
+| AI Configuration | Internal | localStorage (device-level) | provider/model; endpoint validated on read |
+| Wiki Guidelines Content | Internal | static asset `public/content/` | Sanitised at render |
+
+Client-side encryption (AES-256-GCM, passphrase lock screen) was **removed before 2026-07-29**; older encrypted exports are rejected on import. Confidentiality at rest in the browser relies on the Midway-gated origin and per-alias namespacing; the authoritative copy lives in DynamoDB.
 
 ## 3. Security Architecture
 
@@ -49,30 +53,33 @@ The app is deployed on the Harmony platform at `promo-track.harmony.a2z.com` (pr
 └──────────────────┼──────────────────────────────────────────────────┘
                    │ HTTPS
 ┌──────────────────▼──────────────────────────────────────────────────┐
-│  API Gateway HttpApi (Lambda REQUEST Authorizer)                    │
+│  ONE API Gateway HttpApi per stage (Lambda REQUEST Authorizer)      │
 │  ┌────────────────────────────────────────────────────────────────┐ │
 │  │ authorizer.mjs: aws-jwt-verify against Midway JWKS             │ │
-│  │ RS256 · audience: app hostname · 30s clock skew                │ │
-│  │ Returns: {alias} in authorizer context                         │ │
+│  │ RS256 · audience per stage · 30s clock skew · 5-min cache      │ │
+│  │ Returns: {alias}; Allow policy = stage wildcard ARN            │ │
 │  └────────────────────────────────────────────────────────────────┘ │
 │  Handlers: read alias from event.requestContext.authorizer.lambda   │
-│  URL path alias validated to match token alias (403 otherwise)      │
+│  userdata: path alias must equal token alias (403); If-Match → 409  │
+│  reviews: owner | reviewer allowlist | open link; deny → 404        │
 └──────────────────┬──────────────────────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────────────────────┐
-│  DynamoDB (promo-track-users / promo-track-reviews)                 │
-│  App-enforced alias as partition key (userId / sessionId owner)      │
+│  DynamoDB users(-beta) / reviews(-beta): Retain, PITR, TTL 7 d      │
+│  users: userId=alias, version counter · reviews: ownerAlias,        │
+│  reviewerAliases, per-entry comments with commenterAlias            │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 4. Implemented Security Controls
 
 ### 4.1 Midway JWT Authentication (NEW — 2026-07-29)
-- **Scope:** Both backend HttpApis (userdata: `t8b50k0lwh`, review: `1jvjxaiuig`)
+- **Scope:** The single HTTP API per stage (beta: `g093baotu0`; prod legacy: `t8b50k0lwh`, `1jvjxaiuig` until cut-over)
 - **Mechanism:** Lambda REQUEST authorizer using `aws-jwt-verify` against Midway JWKS
 - **JWKS URI:** `https://midway-auth.amazon.com/jwks.json`
 - **Algorithm:** RS256
-- **Audience:** `promo-track.harmony.a2z.com,promo-track.beta.harmony.a2z.com`
+- **Audience:** per stage (`StageConfig` mapping) — beta accepts only the beta host
+- **Policy caching:** `ReauthorizeEvery: 300`; the Allow policy is scoped to the stage wildcard ARN so the cached policy is valid for every route
 - **Clock Skew:** 30 seconds
 - **Alias Binding:** Handler validates URL path alias matches token `sub` claim (403 on mismatch)
 - **Review Attribution:** `commenterAlias` captured from token server-side — unforgeable
@@ -84,35 +91,35 @@ The app is deployed on the Harmony platform at `promo-track.harmony.a2z.com` (pr
 - **Shared Browser Protection:** Multiple users on the same browser profile no longer clobber each other's data
 
 ### 4.3 CORS — Explicit Origins (FIXED — was `*`)
-- **Allowed Origins:** `https://promo-track.harmony.a2z.com`, `https://promo-track.beta.harmony.a2z.com`, `http://localhost:5173`
-- **Allowed Headers:** `Authorization`, `Content-Type`
-- **Configured in:** Both SAM `template.yaml` files under `CorsConfiguration`
+- **Allowed Origins:** `AllowedOrigins` stack parameter per stage (beta: beta host + localhost; prod: both Harmony hosts)
+- **Allowed Headers:** `Authorization`, `Content-Type`, `If-Match`; methods GET/POST/PUT/DELETE/OPTIONS
+- **Configured in:** `backend/template.yaml` `CorsConfiguration` only — handlers no longer emit CORS headers
 
 ### 4.4 Input Validation — Server-Side (NEW — 2026-07-29)
 - **Userdata PUT:** Max 1MB body (413 Payload Too Large)
 - **Review Comment POST:** Max 4KB per comment (400 Bad Request)
 - **Comments per Session:** Max 200 (400 Bad Request)
 
-### 4.5 Encryption at Rest (Client)
-- **Algorithm:** AES-256-GCM with PBKDF2 key derivation
-- **Key Derivation:** 100,000 iterations with static salt
-- **IV Generation:** Cryptographically secure random IV per encryption operation
-- **Storage:** All sensitive data encrypted before localStorage persistence
-- **Key Management:** Derived from user passphrase, not stored
+### 4.5 Build-Time Configuration (NEW — 2026-09-10)
+- API and AI endpoints resolved from `VITE_*` variables into `src/config.ts` at build time
+- The former `localStorage` overrides (`promo-track-review-api`, `promo-track-userdata-api`) are removed; the AI endpoint may only be the build endpoint, `localhost` or `/api/*`
+- `.env.development.local` is loaded by the dev server only; `.env.beta` is committed and secret-free
 
-### 4.6 Encrypted Portfolio Export/Import
-- **Export Format:** `PROMO-TRACK-ENC:` prefix marker for encrypted files
-- **Passphrase Protection:** User-defined passphrase for export encryption
-- **Legacy Support:** Maintains compatibility with previous export formats
+### 4.6 Review Session Access Control (NEW — 2026-09-10)
+- `POST /reviews` stores `ownerAlias` (from the JWT) and a normalised `reviewerAliases` allowlist (≤10)
+- `GET`, `GET /status`, `POST /comments` succeed for the owner or a listed reviewer; if the list is empty anyone authenticated with the link may access; unauthorised callers receive **404**, not 403, to prevent id probing
+- Comments are merged per entry (`SET comments.#k = :v`) so reviewers cannot erase each other's feedback
+- `DELETE /reviews/{id}` lets the owner revoke a link (condition expression on `ownerAlias`)
+- UI: Share for Review defaults to restricting the link to the manager alias; "Manage review link" exposes revoke
 
-### 4.7 Passphrase Lock Screen
-- **Setup Flow:** Initial passphrase creation with confirmation
-- **Unlock Mechanism:** Passphrase verification before app access
-- **Portfolio File Integration:** Direct file opening with passphrase prompt
+### 4.7 Optimistic Concurrency for Portfolio Saves (NEW — 2026-09-10)
+- Records carry a `version` counter; `PUT /userdata/{alias}` accepts `If-Match` and fails with **409** on mismatch
+- Client pauses cloud sync on 409 and asks the user to load the newer copy or keep theirs — no silent overwrite
+- Clients without `If-Match` still work (last-writer-wins) for backwards compatibility
 
 ### 4.8 AI Endpoint Allowlist & Rate Limiting
-- **Patterns:** 4 approved endpoint URL patterns
-- **Validation:** Strict URL matching against allowlist
+- **Patterns:** the build-configured AI endpoint, `localhost`/`127.0.0.1`, `/api/*` (dev proxy) — `*.amazonaws.com` wildcard removed
+- **Validation:** applied on read and write of the stored config; invalid config is discarded
 - **Rate Limit:** 2-second minimum between chat() calls
 
 ### 4.9 HTML Sanitization
@@ -125,22 +132,22 @@ The app is deployed on the Harmony platform at `promo-track.harmony.a2z.com` (pr
 - **Anti-Fabrication:** Never invents facts, metrics, names, dates, or events
 - **Omit-over-Guess:** Empty suggestions list preferred over uncertain claims
 - **No Outcome Predictions:** Never predicts promotion outcomes, timelines, or probabilities
-- **Prompt-Injection Defense:** User STAR text treated as DATA, not instructions
+- **Prompt-Injection Defense:** every user-authored string is length-capped, stripped of delimiter tokens and wrapped in `<<<USER_DATA … USER_DATA>>>` blocks; all system prompts (incl. the legacy `PROMPTS.*` family) carry the INJECTION DEFENSE clause
+- **Response Validation:** `parseSuggestDimensionsResponse()` drops ids not in the current level's guideline list, caps 3 suggestions / 400 chars, never throws on malformed output
 - **Strict JSON Output:** Enforces exact JSON schema, no prose outside structure
 - **Client-Side Validation:** `validateSuggestions()` discards any suggestion whose quoted text doesn't appear verbatim (≥20 chars, whitespace/case normalized) in the entry
 
 ### 4.11 HTTP Security Headers
-- **CSP:** Restricted `connect-src` includes `midway-auth.amazon.com` and API endpoints; `localhost:11434` **removed** from production
-- **Cache-Control:** Three-tier pattern: index.html `no-cache/no-store/must-revalidate`; assets `max-age=31536000 immutable`; fallback `max-age=3600`
-- **X-Frame-Options:** DENY
-- **X-Content-Type-Options:** nosniff
-- **Referrer-Policy:** strict-origin-when-cross-origin
-- **Permissions-Policy:** Restricted feature access
+- **Harmony (beta, verified live 2026-09-10):** `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: …; connect-src 'self' <harmony hosts> midway-auth.amazon.com <api hosts>; worker-src 'self' blob:; media-src 'self'; frame-src <harmony/midway hosts>` — app directives from `.harmony/harmony-metadata.json` merged with Harmony platform defaults
+- **X-Content-Type-Options:** nosniff (the only additional header Harmony accepts; `Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options` are rejected at registration)
+- **Amplify (legacy path):** full CSP with pinned `connect-src`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, three-tier `Cache-Control`
+- **API Gateway:** access logs (90 days) with alias, status and latency; 5XX and 4XX-burst alarms
 
 ### 4.12 File Import Security
 - **Size Validation:** Enforced limits prevent resource exhaustion
 - **PDF Processing:** Layout-resilient V2 parser (`pdfImportV2.ts`) with label-anchored extraction — fails closed on mismatch; returns diagnostics
-- **Prototype Pollution Guard:** Object.create(null) for safe parsing
+- **Prototype Pollution Guard:** `JSON.parse` reviver rejects `__proto__`, `constructor`, `prototype` keys precisely (replaced a substring scan that rejected legitimate text)
+- **State Normalisation:** `normalizeState()` fills defaults and runs migrations for data from localStorage, cloud and imports, so partial records cannot crash the app
 
 ### 4.13 Review Comment Security
 - **Server-Side Attribution:** `commenterAlias` set from verified JWT — cannot be forged by client
@@ -148,16 +155,19 @@ The app is deployed on the Harmony platform at `promo-track.harmony.a2z.com` (pr
 - **Matching:** By ID (primary) then unambiguous title (fallback)
 
 ### 4.14 Error Boundary & Consistent Error Handling
-- **Coverage:** React Error Boundary wrapping entire application
+- **Coverage:** React Error Boundary wrapping entire application; offers Reload, Export my data, Reset local copy; logs structured error without exposing stack traces
+- **Lambda errors:** 500 responses are generic; details logged as JSON
 - **ErrorSnackbar:** Centralized error notification system
-- **Type Safety:** Zero `any` types enforced across codebase
+- **Type Safety:** `strict` TypeScript; ESLint 0 errors including `no-explicit-any` and React hooks rules
 
 ### 4.15 Dependency Security
 - **DOMPurify:** Explicit pinned dependency (`dompurify@^3.4.12`) — previously phantom/undeclared — **FIXED**
-- **Automated Scanning:** `npm audit` in CI pipeline
-- **Vite 8 beta:** Pinned (`^8.0.0-beta.13`) — accepted risk pending stable release
+- **Automated Scanning:** `npm audit --omit=dev --audit-level=high` fails the Amplify and GitHub Actions builds
+- **Runtime:** Lambda `nodejs24.x` (the previous `nodejs20.x` was deprecated and update-blocked)
+- **Vite 8 beta:** Pinned — accepted risk pending stable release
+- **MUI icons:** path imports enforced by lint (smaller dependency graph in dev/test)
 
-## 5. RESOLVED Security Issues (this review cycle)
+## 5. RESOLVED Security Issues (2026-07-29 cycle)
 
 | # | Issue (was) | Severity (was) | Resolution |
 |---|-------------|----------------|------------|
@@ -200,7 +210,11 @@ The app is deployed on the Harmony platform at `promo-track.harmony.a2z.com` (pr
 |--------|----------|------------|--------|
 | Unauthorized API access | Spoofing | Midway JWT + alias binding | ✅ Mitigated |
 | Cross-user data access | Elevation of Privilege | Server-side alias validation + namespaced localStorage | ✅ Mitigated |
-| Data theft from storage | Spoofing | AES-256-GCM encryption | ✅ Mitigated |
+| Data theft from browser storage | Information Disclosure | Midway-gated origin, per-alias keys, strict CSP (no inline scripts) | ⚠️ Accepted (no client-side encryption) |
+| Cross-device overwrite / data loss | Tampering | Versioned saves with `If-Match` → 409 + user choice | ✅ Mitigated |
+| Review link shared beyond intended reviewer | Information Disclosure | Reviewer allowlist (404 on deny) + owner revoke | ✅ Mitigated |
+| Token exfiltration via redirected API URL | Spoofing | Endpoints fixed at build time | ✅ Mitigated |
+| Accidental table deletion | Denial of Service | Retain policies, deletion protection, PITR | ✅ Mitigated |
 | CORS data exfiltration | Information Disclosure | Explicit origin allowlist | ✅ Mitigated |
 | Forged review comments | Tampering | Server-side commenterAlias from JWT | ✅ Mitigated |
 | Malicious script injection | Tampering | DOMPurify + XSS sanitization | ✅ Mitigated |
@@ -208,7 +222,7 @@ The app is deployed on the Harmony platform at `promo-track.harmony.a2z.com` (pr
 | Oversized payload DoS | Denial of Service | Server-side size limits (1MB/4KB) | ✅ Mitigated |
 | Stale bundle serving old code | Denial of Service | Three-tier cache headers (no-cache on index.html) | ✅ Mitigated |
 | PII exposure to AI services | Information Disclosure | User-controlled, endpoint allowlist | ⚠️ Accepted risk |
-| AI proxy abuse | Denial of Service | Client-side rate limiting + monitoring | ⚠️ Accepted risk |
+| AI proxy abuse / narrative exposure | Denial of Service / Info Disclosure | Client-side rate limiting; endpoint fixed at build time | ⚠️ Open — proxy not behind Midway |
 
 ## 8. Data Flow Security
 
@@ -221,14 +235,19 @@ Browser Midway cookie → midway-auth.amazon.com/SSO → id_token (in-memory)
 
 ### Storage Flow
 ```
-User Input → Validation → Encryption (AES-256-GCM) → localStorage (namespaced per alias)
+User Input → reducer → localStorage promo-track-<alias>:data (immediate)
+           → 2 s debounce → PUT /userdata/<alias> with If-Match: <version>
+           → 200 {version} | 409 → sync paused, user chooses "Load newer copy" / "Keep mine"
+Boot: Harmony user → GET /userdata → normalizeState() → app; fallback localStorage
 ```
 
 ### Review Comment Flow
 ```
-Manager submits comment → Bearer token attached → authorizer verifies JWT
-→ handler extracts commenterAlias from token → DynamoDB write (unforgeable attribution)
-→ Owner polls status → consumeReview() matches by ID/title → retry/stash on failure
+Owner: Share for Review → POST /reviews {entries, reviewerAliases} → ownerAlias from JWT, TTL 7 d
+Reviewer: GET /reviews/{id} → canAccessReview(owner | allowlist | open) else 404
+       → POST /comments → merged per entry with commenterAlias from JWT
+Owner: useReviewPolling (30 s) → consumeReview() matches by id/title → retry/stash
+Owner: DELETE /reviews/{id} (revoke) → subsequent access 404
 ```
 
 ### PDF Import Flow
@@ -239,20 +258,21 @@ File Upload → pdfImportV2.ts (label-anchored, per-KPI extraction)
 
 ### AI Flow
 ```
-Narrative save → auto-suggest (silent) → PROMO_COACH_SYSTEM prompt
-→ Response → validateSuggestions() (client-side quote check ≥20 chars)
-→ Fabricated quotes dropped → Pending chips displayed
+Narrative save → asData()/dataBlock() wrap → PROMO_COACH_SYSTEM (+ INJECTION DEFENSE)
+→ Response → parseSuggestDimensionsResponse(allowedIds) → validateSuggestions() (verbatim quote ≥20 chars)
+→ Unknown ids / ungrounded quotes dropped → Pending chips displayed
 ```
 
 ## 9. Test Coverage
 
 | Category | Test Count | Scope |
 |----------|-----------|-------|
-| Frontend (Vitest + jsdom) | 157 | storage, dimensionScoring, pdfImportV2, reviewImport, midwayAuth, apiFetch, storageMigration, leadClause |
-| Backend (Node.js test runner) | 24 | authorizer (10), userdata handlers (8), review handlers (6) |
-| **Total** | **181** | |
+| Frontend unit (Vitest + jsdom) | 201 | storage, migrations, dimensionScoring, pdfImportV2, reviewImport, reviewApi, aiPrompts (data blocks, response parser), midwayAuth, apiFetch, leadClause |
+| Frontend component (React Testing Library) | 8 | ShareReviewDialog (allowlist, create, revoke), Dashboard (first run, next step, links), AppProvider debounced versioned save |
+| Backend (Vitest, node) | 44 | authorizer allow/deny matrix + stage wildcard (11), userdata ownership / If-Match / 409 / limits (14), review access control / merge / revoke / no error leakage (19) |
+| **Total** | **253** | |
 
-Live API matrix verified: no-token→401, valid-token-own-alias→200, valid-token-other-alias→403, expired/malformed→401/403, wrong-audience→401/403, oversized-body→413, oversized-comment→400.
+Release verification (2026-09-10, beta): browser E2E against the local harness (23 + 11 checks: boot, lazy routes, sanitised wiki, versioned save, 409 conflict banner and resolution, reviewer/stranger access, revoke, dark mode, no console errors) and a live matrix against the deployed beta API with a real Midway token: no-token→401, forged→403, own alias→200, other alias→403, stale `If-Match`→409, review create/read/status/revoke→201/200/200/200 then 404, CORS preflight→204 with `if-match` and `DELETE` for the beta origin only.
 
 ## 10. Compliance Posture
 
@@ -260,45 +280,55 @@ Live API matrix verified: no-token→401, valid-token-own-alias→200, valid-tok
 |---------|---------------|--------|
 | Authentication | Midway JWT (RS256) on all APIs | ✅ Compliant |
 | Authorization | Alias binding (token sub = URL path) | ✅ Compliant |
-| Encryption at Rest | AES-256-GCM (client) | ✅ Compliant |
+| Encryption at Rest | DynamoDB AWS-owned key; browser copy unencrypted (Midway-gated) | ⚠️ Accepted |
 | Encryption in Transit | HTTPS only | ✅ Compliant |
 | Input Validation | Client + server-side size limits | ✅ Compliant |
 | Output Sanitization | DOMPurify + XSS protection | ✅ Compliant |
-| Security Headers | CSP + HSTS + X-Frame-Options | ✅ Compliant |
+| Security Headers | Strict CSP (Harmony-merged), nosniff; HSTS by platform | ✅ Compliant |
 | CORS | Explicit origins only | ✅ Compliant |
 | Dependency Scanning | npm audit in CI | ✅ Compliant |
-| PII in Source Code | Fictional data only | ✅ Compliant |
-| Test Coverage | 181 tests (frontend + backend) | ✅ Compliant |
+| PII in Source Code | Removed from tree (git history purge pending) | ⚠️ In progress |
+| Test Coverage | 253 tests (unit, component, backend) + release E2E | ✅ Compliant |
+| Data Durability | Retain policies, PITR, deletion protection, alarms | ✅ Compliant |
+| Concurrency Safety | Versioned saves, 409 handling | ✅ Compliant |
 
 ## 11. Future Recommendations
 
-1. **AI Proxy Authentication:** Add JWT authorizer to the Bedrock proxy (`706rf9fx5c`) — highest remaining priority
-2. **IAM Leading-Key Condition:** Add DynamoDB IAM condition key for defense-in-depth
-3. **Stabilize Vite:** Move off Vite 8 beta once stable release is available
-4. **Environment Configuration:** Replace hardcoded API Gateway URLs with build-time environment variables
-5. **Audit Logging:** Implement comprehensive activity logging
-6. **Penetration Testing:** Regular third-party security assessments
+1. **AI Proxy Authentication:** bring the Bedrock proxy (`706rf9fx5c`) into `backend/` behind the shared Midway authorizer and route `ai.ts` through `apiFetch` — highest remaining priority
+2. **Git history purge:** `git filter-repo` for `Shout-Out/*.eml`, `one pager.png`, `.aws-sam/` before the repo is shared more widely
+3. **Prod cut-over:** move prod to the unified stack (runbook in `backend/README.md`), then delete the legacy `nodejs20.x` stacks
+4. **IAM Leading-Key Condition:** DynamoDB condition key for defence-in-depth
+5. **Stabilize Vite:** move off Vite 8 beta once stable
+6. **Anonymise test fixture:** `src/utils/__tests__/fixtures/gsd1-*` contains a real scorecard extract
+7. **Penetration Testing:** periodic assessment
 
 ## 12. Security File Map
 
 | File | Security Role | Description |
 |------|---------------|-------------|
-| `backend/*/src/authorizer.mjs` | Authentication | Midway JWT verification (aws-jwt-verify, RS256, JWKS) |
+| `backend/src/authorizer.mjs` | Authentication | Midway JWT verification (aws-jwt-verify, RS256, JWKS); stage-wildcard policy |
+| `backend/src/lib/http.mjs` | Authorization | `assertOwner`, `canAccessReview`, generic `serverError` |
+| `backend/src/review/*.mjs`, `backend/src/userdata/*.mjs` | Handlers | access control, per-entry merge, `If-Match`/409 |
+| `src/config.ts` | Configuration | build-time endpoints (no runtime override) |
 | `src/utils/midwayAuth.ts` | Token Management | Fetches/caches Midway id_token in-memory; refresh on 401 |
 | `src/utils/apiFetch.ts` | Transport Security | Wraps fetch with Bearer header + 401 auto-retry |
 | `src/store/storage.ts` | Data Isolation | Per-alias namespaced localStorage; one-shot migration |
-| `src/utils/crypto.ts` | Encryption Core | AES-256-GCM implementation, PBKDF2 key derivation |
-| `src/utils/aiPrompts.ts` | AI Guardrails | PROMO_COACH_SYSTEM grounding, anti-fabrication, injection defense |
+| `src/utils/session.ts` | Import Safety | JSON reviver blocking prototype-pollution keys; size limit |
+| `src/store/AppContext.tsx` / `src/utils/userDataApi.ts` | Concurrency | versioned saves, `ConflictError`, conflict banner |
+| `src/utils/aiPrompts.ts` | AI Guardrails | data blocks (`asData`/`dataBlock`), PROMO_COACH_SYSTEM, `parseSuggestDimensionsResponse` |
+| `src/utils/ai.ts` | AI Transport | endpoint allowlist, rate limiting |
+| `src/components/starr/ShareReviewDialog.tsx` | Review Sharing | reviewer allowlist UI, revoke |
 | `src/utils/pdfImportV2.ts` | File Security | Layout-resilient PDF parser; label-anchored, fails closed |
 | `src/utils/reviewImport.ts` | Review Security | consumeReview() with retry/stash; match by ID then title |
 | `amplify.yml` | Header Security | Three-tier cache + CSP (no localhost in prod) |
-| `.harmony/harmony-metadata.json` | Header Security | Harmony CSP (midway-auth + API endpoints) |
-| `backend/*/template.yaml` | Infrastructure | SAM templates: CORS config, authorizer, DynamoDB |
+| `.harmony/harmony-metadata.json` | Header Security | Harmony CSP object (merged with platform defaults) + nosniff |
+| `backend/template.yaml` | Infrastructure | single SAM stack: CORS parameter, authorizer, tables (Retain/PITR), alarms, access logs |
+| `.github/workflows/ci.yml` | Supply Chain | audit/lint/test/validate gates; OIDC deploy (no long-lived keys) |
 
 ---
 
 **Document Classification:** Internal Use  
-**Last reviewed:** 2026-07-29  
-**Next Review Date:** 2026-10-29  
+**Last reviewed:** 2026-09-10  
+**Next Review Date:** 2026-12-10  
 **Approved By:** Security Team  
 **Document Owner:** PromoTrack Development Team
