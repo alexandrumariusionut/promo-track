@@ -1,5 +1,8 @@
 import { Box, Typography, Button, Chip } from '@mui/material';
-import { ContentCopy, Delete, RateReview, Visibility } from '@mui/icons-material';
+import ContentCopy from '@mui/icons-material/ContentCopy';
+import Delete from '@mui/icons-material/Delete';
+import RateReview from '@mui/icons-material/RateReview';
+import Visibility from '@mui/icons-material/Visibility';
 import { STAREntry } from '../../types';
 
 interface STARRCardProps {

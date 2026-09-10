@@ -4,7 +4,8 @@ import {
   Box, Typography, Paper, TextField, Button, Alert, CircularProgress,
   Chip, Divider, Container,
 } from '@mui/material';
-import { Send, CheckCircle } from '@mui/icons-material';
+import Send from '@mui/icons-material/Send';
+import CheckCircle from '@mui/icons-material/CheckCircle';
 import { getReview, submitComments } from '../utils/reviewApi';
 import { getHarmonyUser } from '../utils/harmonyUser';
 
@@ -101,7 +102,7 @@ export default function ReviewPage() {
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
-      <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, #1565c0 0%, #0d47a1 100%)', color: 'white' }}>
+      <Paper sx={{ p: 3, mb: 3, background: (t) => t.palette.brand.gradient, color: 'common.white', border: 'none' }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>Portfolio Review</Typography>
         <Typography sx={{ mt: 1, opacity: 0.9 }}>
           {data.employeeName} · Target: {data.targetLevel}

@@ -4,7 +4,10 @@ import {
   Typography, Box, Paper, IconButton, Tooltip, Divider, TextField, Checkbox,
   FormControlLabel, Chip,
 } from '@mui/material';
-import { AutoAwesome, ContentCopy, Check, Send } from '@mui/icons-material';
+import AutoAwesome from '@mui/icons-material/AutoAwesome';
+import ContentCopy from '@mui/icons-material/ContentCopy';
+import Check from '@mui/icons-material/Check';
+import Send from '@mui/icons-material/Send';
 import { chat, chatMessages, checkConnection } from '../../utils/ai';
 import { PROMPTS } from '../../utils/aiPrompts';
 import { useApp } from '../../store/AppContext';

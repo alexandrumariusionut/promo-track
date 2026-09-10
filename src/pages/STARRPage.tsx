@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Box, Typography, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Snackbar, Alert } from '@mui/material';
-import { Add, Share, RateReview } from '@mui/icons-material';
+import Add from '@mui/icons-material/Add';
+import Share from '@mui/icons-material/Share';
+import RateReview from '@mui/icons-material/RateReview';
 import DimensionCoveragePanel from '../components/starr/DimensionCoveragePanel';
 import PageTip from '../components/PageTip';
 import { v4 as uuid } from 'uuid';

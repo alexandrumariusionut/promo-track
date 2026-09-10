@@ -3,7 +3,9 @@ import {
   Alert, Autocomplete, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, Divider, FormControlLabel, Switch, TextField, Typography,
 } from '@mui/material';
-import { ContentCopy, LinkOff, Share } from '@mui/icons-material';
+import ContentCopy from '@mui/icons-material/ContentCopy';
+import LinkOff from '@mui/icons-material/LinkOff';
+import Share from '@mui/icons-material/Share';
 import { AppState } from '../../types';
 import { createReviewSession, revokeReviewSession } from '../../utils/reviewApi';
 import { getPendingReviewKey } from '../../store/storage';

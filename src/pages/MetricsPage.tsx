@@ -4,7 +4,12 @@ import {
   TextField, MenuItem, Paper, IconButton, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, Alert, Checkbox, Tooltip, CircularProgress,
 } from '@mui/material';
-import { Add, Delete, PictureAsPdf, DeleteSweep } from '@mui/icons-material';
+import Add from '@mui/icons-material/Add';
+import Delete from '@mui/icons-material/Delete';
+import PictureAsPdf from '@mui/icons-material/PictureAsPdf';
+import DeleteSweep from '@mui/icons-material/DeleteSweep';
+import CheckCircle from '@mui/icons-material/CheckCircle';
+import Cancel from '@mui/icons-material/Cancel';
 import { useForm, Controller } from 'react-hook-form';
 import { v4 as uuid } from 'uuid';
 import { useApp } from '../store/AppContext';
@@ -20,11 +25,20 @@ const PCT_TYPES = ['CSAT', 'Case ARR', 'Transfer Rate', 'Dual Chat Overlap %', '
 // Min threshold types: higher is better (value should be ≥ target)
 const MIN_THRESHOLD_TYPES = ['CSAT', 'Case ARR', 'Dual Chat Overlap %', 'Custom'];
 
-function thresholdColor(type: string, value: number, target: number): string {
-  if (!target) return 'inherit';
+type TargetStatus = 'met' | 'missed' | 'none';
+
+function targetStatus(type: string, value: number, target: number): TargetStatus {
+  if (!target) return 'none';
   const higherIsBetter = MIN_THRESHOLD_TYPES.includes(type);
-  const met = higherIsBetter ? value >= target : value <= target;
-  return met ? '#2e7d32' : '#c62828';
+  return (higherIsBetter ? value >= target : value <= target) ? 'met' : 'missed';
+}
+
+/** Colour is never the only cue: an icon + accessible label accompany it. */
+function StatusIcon({ status }: { status: TargetStatus }) {
+  if (status === 'none') return null;
+  return status === 'met'
+    ? <CheckCircle fontSize="inherit" color="success" titleAccess="On target" sx={{ verticalAlign: 'text-bottom', mr: 0.5 }} />
+    : <Cancel fontSize="inherit" color="error" titleAccess="Below target" sx={{ verticalAlign: 'text-bottom', mr: 0.5 }} />;
 }
 
 function targetLabel(type: string, target: number): string {
@@ -181,7 +195,10 @@ export default function MetricsPage() {
                     <Checkbox checked={selected.has(m.id)} onChange={() => toggleSelect(m.id)} />
                   </TableCell>
                   <TableCell><Chip label={m.type} size="small" color={m.channel === 'Benchmark' ? 'default' : 'primary'} variant={m.channel === 'Benchmark' ? 'outlined' : 'filled'} /></TableCell>
-                  <TableCell sx={{ color: thresholdColor(m.type, m.value, m.target), fontWeight: m.target ? 600 : undefined }}>{m.value}{PCT_TYPES.includes(m.type) || m.type.includes('%') ? '%' : ''}</TableCell>
+                  {(() => { const st = targetStatus(m.type, m.value, m.target); return (
+                  <TableCell sx={{ color: st === 'met' ? 'success.main' : st === 'missed' ? 'error.main' : 'inherit', fontWeight: m.target ? 600 : undefined, whiteSpace: 'nowrap' }}>
+                    <StatusIcon status={st} />{m.value}{PCT_TYPES.includes(m.type) || m.type.includes('%') ? '%' : ''}
+                  </TableCell>); })()}
                   <TableCell>{targetLabel(m.type, m.target)}</TableCell>
                   <TableCell>{m.channel}</TableCell>
                   <TableCell>{m.date}</TableCell>

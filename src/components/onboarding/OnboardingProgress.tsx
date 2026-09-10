@@ -1,5 +1,6 @@
 import { Box, Stepper, Step, StepLabel, Typography } from '@mui/material';
-import { EmojiEvents, CheckCircle } from '@mui/icons-material';
+import EmojiEvents from '@mui/icons-material/EmojiEvents';
+import CheckCircle from '@mui/icons-material/CheckCircle';
 import { useOnboarding } from '../../context/OnboardingContext';
 
 const STEPS = ['Read Guidelines', 'Complete Profile', 'First STAR Entry'];
@@ -10,7 +11,7 @@ export default function OnboardingProgress() {
   if (stage >= 3) {
     return (
       <Box sx={{ mx: 2, mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 2, textAlign: 'center' }}>
-        <EmojiEvents sx={{ fontSize: 48, color: '#FFD700' }} />
+        <EmojiEvents sx={{ fontSize: 48, color: 'brand.trophy' }} />
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1 }}>
           All Unlocked! 🏆
         </Typography>

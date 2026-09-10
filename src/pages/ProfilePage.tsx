@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, TextField, Button, Paper, MenuItem, Grid, Divider, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { DeleteSweep, AutoFixHigh } from '@mui/icons-material';
+import DeleteSweep from '@mui/icons-material/DeleteSweep';
+import AutoFixHigh from '@mui/icons-material/AutoFixHigh';
 import { useForm, Controller } from 'react-hook-form';
 import { useApp } from '../store/AppContext';
 import { getDefaultState } from '../store/storage';

@@ -21,19 +21,17 @@ import {
   Autocomplete,
   CircularProgress,
 } from '@mui/material';
-import {
-  Delete,
-  DragIndicator,
-  Visibility,
-  Image as ImageIcon,
-  TextFields,
-  ArrowUpward,
-  ArrowDownward,
-  AddCircleOutline,
-  AutoAwesome,
-  Check,
-  Close,
-} from '@mui/icons-material';
+import Delete from '@mui/icons-material/Delete';
+import DragIndicator from '@mui/icons-material/DragIndicator';
+import Visibility from '@mui/icons-material/Visibility';
+import ImageIcon from '@mui/icons-material/Image';
+import TextFields from '@mui/icons-material/TextFields';
+import ArrowUpward from '@mui/icons-material/ArrowUpward';
+import ArrowDownward from '@mui/icons-material/ArrowDownward';
+import AddCircleOutline from '@mui/icons-material/AddCircleOutline';
+import AutoAwesome from '@mui/icons-material/AutoAwesome';
+import Check from '@mui/icons-material/Check';
+import Close from '@mui/icons-material/Close';
 import { v4 as uuid } from 'uuid';
 import WordCount from '../WordCount';
 import ImproveSTARRButton from '../ai/ImproveSTARRButton';

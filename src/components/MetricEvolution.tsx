@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Box, Paper, Typography, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
-import { TrendingUp, InfoOutlined } from '@mui/icons-material';
+import { Box, Paper, Typography, ToggleButton, ToggleButtonGroup, Tooltip, useTheme } from '@mui/material';
+import TrendingUp from '@mui/icons-material/TrendingUp';
+import InfoOutlined from '@mui/icons-material/InfoOutlined';
 import {
   LineChart, Line, XAxis, YAxis, ReferenceLine, ResponsiveContainer, Tooltip as RTooltip, Dot,
 } from 'recharts';
@@ -19,8 +20,6 @@ const HIGHER_IS_BETTER = new Set(['CSAT%', 'ARR', 'CONC%', 'Quality Score']);
 // KPIs rendered as percentages (everything else is minutes).
 const PERCENT_KPIS = new Set(['CSAT%', 'ARR', 'CONC%', 'Quality Score', 'XFER%', 'Contacts Missed']);
 
-const ON = '#2e7d32';
-const OFF = '#c62828';
 
 interface Point {
   week: number;
@@ -129,13 +128,25 @@ function monthlyPoints(s: KpiSeries): MonthPoint[] {
 }
 
 /** Colored dot for charts (green on-target, red off-target). */
-function TargetDot(props: { cx?: number; cy?: number; payload?: { onTarget: boolean } }) {
-  const { cx, cy, payload } = props;
+function TargetDot(props: { cx?: number; cy?: number; payload?: { onTarget: boolean }; onColor?: string; offColor?: string }) {
+  const { cx, cy, payload, onColor, offColor } = props;
   if (cx == null || cy == null || !payload) return null;
-  return <Dot cx={cx} cy={cy} r={3.5} fill={payload.onTarget ? ON : OFF} stroke="none" />;
+  return <Dot cx={cx} cy={cy} r={3.5} fill={payload.onTarget ? onColor : offColor} stroke="none" />;
+}
+
+/** Palette-aware chart colours so charts stay legible in dark mode. */
+function useChartColors() {
+  const theme = useTheme();
+  return {
+    on: theme.palette.success.main,
+    off: theme.palette.error.main,
+    line: theme.palette.primary.main,
+    target: theme.palette.text.secondary,
+  };
 }
 
 function WeeklyCard({ s }: { s: KpiSeries }) {
+  const c = useChartColors();
   const onCount = s.points.filter((p) => p.onTarget).length;
   const total = s.points.length;
   const values = s.points.map((p) => p.value);
@@ -151,7 +162,7 @@ function WeeklyCard({ s }: { s: KpiSeries }) {
           Target {s.higherIsBetter ? '≥' : '≤'} {fmt(s.target, s.isPercent)}
         </Typography>
       </Box>
-      <Typography variant="caption" sx={{ color: onCount === total ? ON : onCount === 0 ? OFF : 'text.secondary', fontWeight: 600 }}>
+      <Typography variant="caption" sx={{ color: onCount === total ? 'success.main' : onCount === 0 ? 'error.main' : 'text.secondary', fontWeight: 600 }}>
         On target {onCount}/{total} weeks
       </Typography>
       <ResponsiveContainer width="100%" height={120}>
@@ -171,13 +182,13 @@ function WeeklyCard({ s }: { s: KpiSeries }) {
             }}
             contentStyle={{ fontSize: 12 }}
           />
-          <ReferenceLine y={s.target} stroke="#555" strokeDasharray="4 2" />
+          <ReferenceLine y={s.target} stroke={c.target} strokeDasharray="4 2" />
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#1a237e"
+            stroke={c.line}
             strokeWidth={1.5}
-            dot={<TargetDot />}
+            dot={<TargetDot onColor={c.on} offColor={c.off} />}
             isAnimationActive={false}
           />
         </LineChart>
@@ -188,6 +199,7 @@ function WeeklyCard({ s }: { s: KpiSeries }) {
 
 /** Monthly card — same LineChart style as weekly, with month-averaged data points. */
 function MonthlyCard({ s }: { s: KpiSeries }) {
+  const c = useChartColors();
   const buckets = monthlyPoints(s);
   const onCount = buckets.filter((b) => b.onTarget).length;
   const total = buckets.length;
@@ -216,7 +228,7 @@ function MonthlyCard({ s }: { s: KpiSeries }) {
           <InfoOutlined sx={{ fontSize: 14, color: 'text.secondary', cursor: 'help' }} />
         </Tooltip>
       </Box>
-      <Typography variant="caption" sx={{ color: onCount === total ? ON : onCount === 0 ? OFF : 'text.secondary', fontWeight: 600 }}>
+      <Typography variant="caption" sx={{ color: onCount === total ? 'success.main' : onCount === 0 ? 'error.main' : 'text.secondary', fontWeight: 600 }}>
         On target {onCount}/{total} months
       </Typography>
       <ResponsiveContainer width="100%" height={120}>
@@ -236,13 +248,13 @@ function MonthlyCard({ s }: { s: KpiSeries }) {
             }}
             contentStyle={{ fontSize: 12 }}
           />
-          <ReferenceLine y={s.target} stroke="#555" strokeDasharray="4 2" />
+          <ReferenceLine y={s.target} stroke={c.target} strokeDasharray="4 2" />
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#1a237e"
+            stroke={c.line}
             strokeWidth={1.5}
-            dot={<TargetDot />}
+            dot={<TargetDot onColor={c.on} offColor={c.off} />}
             isAnimationActive={false}
           />
         </LineChart>
@@ -262,7 +274,7 @@ export default function MetricEvolution({ metrics }: Props) {
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Paper sx={{ p: 2, mb: 2, bgcolor: '#1a237e', color: 'white' }}>
+      <Paper sx={{ p: 2, mb: 2, background: (t) => t.palette.brand.gradient, color: 'common.white', border: 'none' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <TrendingUp />

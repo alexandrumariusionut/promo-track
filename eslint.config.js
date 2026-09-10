@@ -19,6 +19,12 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // The icons barrel pulls ~2000 modules into dev/test; use path imports.
+      'no-restricted-imports': ['error', {
+        paths: [{ name: '@mui/icons-material', message: "Import icons individually: import X from '@mui/icons-material/X'." }],
+      }],
+    },
   },
   {
     // Context providers and imperative snackbar APIs intentionally export a

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Box, Typography, Button, Grid, Card, CardContent, CardActions, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { Description, Download, Visibility } from '@mui/icons-material';
+import Description from '@mui/icons-material/Description';
+import Download from '@mui/icons-material/Download';
+import Visibility from '@mui/icons-material/Visibility';
 import DOMPurify from 'dompurify';
 import { useApp } from '../store/AppContext';
 import { generatePreviewHTML } from '../utils/docPreview';

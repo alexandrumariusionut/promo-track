@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Box, Typography, Paper, Chip, ToggleButtonGroup, ToggleButton } from '@mui/material';
-import { Star, History } from '@mui/icons-material';
+import Star from '@mui/icons-material/Star';
+import History from '@mui/icons-material/History';
 import { useApp } from '../store/AppContext';
 
 type ItemType = 'star' | 'activity';
@@ -17,7 +18,7 @@ const icons: Record<ItemType, React.ReactNode> = {
   star: <Star sx={{ fontSize: 14 }} />,
   activity: <History sx={{ fontSize: 14 }} />,
 };
-const colors: Record<ItemType, string> = { star: '#1976d2', activity: '#7b1fa2' };
+const colors: Record<ItemType, string> = { star: 'primary.main', activity: 'secondary.main' };
 const labels: Record<ItemType, string> = { star: 'STAR', activity: 'Activity' };
 
 export default function TimelinePage() {

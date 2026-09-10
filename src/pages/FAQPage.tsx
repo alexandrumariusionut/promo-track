@@ -1,5 +1,5 @@
 import { Box, Typography, Accordion, AccordionSummary, AccordionDetails, Chip } from '@mui/material';
-import { ExpandMore } from '@mui/icons-material';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 
 interface FAQItem { q: string; a: string; }
 interface FAQCategory { label: string; color: 'primary' | 'secondary' | 'success' | 'warning' | 'info' | 'error'; items: FAQItem[]; }

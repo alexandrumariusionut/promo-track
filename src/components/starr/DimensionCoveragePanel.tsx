@@ -13,21 +13,19 @@ import {
   Tooltip,
   Card,
 } from '@mui/material';
-import {
-  Analytics,
-  ExpandMore,
-  ExpandLess,
-  School,
-  InfoOutlined,
-  EditNote,
-  BugReport,
-  RocketLaunch,
-  PublishedWithChanges,
-  AdminPanelSettings,
-  Psychology,
-  Balance,
-  MenuBook,
-} from '@mui/icons-material';
+import Analytics from '@mui/icons-material/Analytics';
+import ExpandMore from '@mui/icons-material/ExpandMore';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import School from '@mui/icons-material/School';
+import InfoOutlined from '@mui/icons-material/InfoOutlined';
+import EditNote from '@mui/icons-material/EditNote';
+import BugReport from '@mui/icons-material/BugReport';
+import RocketLaunch from '@mui/icons-material/RocketLaunch';
+import PublishedWithChanges from '@mui/icons-material/PublishedWithChanges';
+import AdminPanelSettings from '@mui/icons-material/AdminPanelSettings';
+import Psychology from '@mui/icons-material/Psychology';
+import Balance from '@mui/icons-material/Balance';
+import MenuBook from '@mui/icons-material/MenuBook';
 import { useApp } from '../../store/AppContext';
 import { GUIDELINES, BONUS_TAGS } from '../../data/levelGuidelines';
 import { scoreDimensions, DimensionScore, DimensionStatus } from '../../utils/dimensionScoring';

@@ -3,7 +3,9 @@ import {
   Box, Typography, Button, Paper, TextField, CircularProgress, Chip, Alert,
   Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, IconButton, Tooltip,
 } from '@mui/material';
-import { AutoAwesome, Settings, ContentCopy } from '@mui/icons-material';
+import AutoAwesome from '@mui/icons-material/AutoAwesome';
+import Settings from '@mui/icons-material/Settings';
+import ContentCopy from '@mui/icons-material/ContentCopy';
 import { chat, checkConnection, getAIConfig, saveAIConfig, AIProvider } from '../../utils/ai';
 import { PROMPTS } from '../../utils/aiPrompts';
 import { useApp } from '../../store/AppContext';

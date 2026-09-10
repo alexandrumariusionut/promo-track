@@ -5,13 +5,21 @@ import {
   ListItemText, Box, IconButton, useMediaQuery, useTheme, Button, Snackbar, Alert, Chip,
   Tooltip, Divider, CircularProgress,
 } from '@mui/material';
-import {
-  Dashboard, Star, BarChart, Description,
-  Person, Menu as MenuIcon, Article, HelpOutline, Save, Cloud,
-  DarkMode, LightMode, MenuBook, LockOutlined,
-} from '@mui/icons-material';
+import Dashboard from '@mui/icons-material/Dashboard';
+import Star from '@mui/icons-material/Star';
+import BarChart from '@mui/icons-material/BarChart';
+import Description from '@mui/icons-material/Description';
+import Person from '@mui/icons-material/Person';
+import MenuIcon from '@mui/icons-material/Menu';
+import Article from '@mui/icons-material/Article';
+import HelpOutline from '@mui/icons-material/HelpOutline';
+import Save from '@mui/icons-material/Save';
+import Cloud from '@mui/icons-material/Cloud';
+import DarkMode from '@mui/icons-material/DarkMode';
+import LightMode from '@mui/icons-material/LightMode';
+import MenuBook from '@mui/icons-material/MenuBook';
+import LockOutlined from '@mui/icons-material/LockOutlined';
 import { useApp } from '../../store/AppContext';
-import { getPendingReviewKey } from '../../store/storage';
 import { useThemeMode } from '../../store/ThemeContext';
 import { UndoSnackbar } from '../UndoSnackbar';
 import { ErrorSnackbar } from '../ErrorSnackbar';
@@ -19,7 +27,7 @@ import { useOnboarding } from '../../context/OnboardingContext';
 import OnboardingProgress from '../onboarding/OnboardingProgress';
 import CelebrationOverlay from '../onboarding/CelebrationOverlay';
 import TrophyModal from '../onboarding/TrophyModal';
-import { consumeReview } from '../../utils/reviewImport';
+import { useReviewPolling } from '../../hooks/useReviewPolling';
 import { APP_NAME } from '../../config';
 
 const NAV = [
@@ -48,42 +56,16 @@ export default function Layout() {
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
   const lastSavedRef = useRef<Date>(new Date());
   const [lastSavedText, setLastSavedText] = useState('just now');
-  const [reviewNotification, setReviewNotification] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { state, dispatch, userId, syncConflict, reloadFromCloud, forceCloudSave } = useApp();
+  const { state, userId, syncConflict, reloadFromCloud, forceCloudSave } = useApp();
   const { toggle, mode } = useThemeMode();
   const { isTabUnlocked, getUnlockHint } = useOnboarding();
 
   // Global review polling — runs on every page
-  useEffect(() => {
-    const sid = localStorage.getItem(getPendingReviewKey());
-    if (!sid) return;
-    const poll = async () => {
-      const outcome = await consumeReview(state.star);
-      if (outcome.action === 'not-ready' || outcome.action === 'pending') return;
-      if (outcome.action === 'error' && !outcome.message) return; // transient — silent retry
-
-      // Apply matched comments via dispatch
-      if (outcome.importResult?.matched.length) {
-        for (const { entryId, comment } of outcome.importResult.matched) {
-          const entry = state.star.find(e => e.id === entryId);
-          if (entry) {
-            dispatch({ type: 'UPDATE_STAR', payload: { ...entry, reviewComments: [...(entry.reviewComments || []), comment] } });
-          }
-        }
-      }
-
-      if (outcome.message) {
-        setReviewNotification(outcome.message);
-      }
-    };
-    poll();
-    const interval = setInterval(poll, 30000);
-    return () => clearInterval(interval);
-  }, [state.star, dispatch]);
+  const { notification: reviewNotification, dismiss: dismissReviewNotification } = useReviewPolling();
 
   // Record the last save time when state changes; the interval below renders it
   useEffect(() => { lastSavedRef.current = new Date(); }, [state]);
@@ -157,13 +139,13 @@ export default function Layout() {
           )}
           <Typography variant="h6" component="h1" noWrap sx={{ fontWeight: 700, flexGrow: 1 }}>{APP_NAME}</Typography>
           <Chip icon={userId ? <Cloud /> : <Save />} label={`${userId ? 'Synced' : 'Saved'} ${lastSavedText}`} size="small" variant="outlined"
-            sx={{ color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.3)', mr: 1, '& .MuiChip-icon': { color: 'rgba(255,255,255,0.7)' } }} />
+            sx={{ color: 'inherit', opacity: 0.85, borderColor: 'currentColor', mr: 1, '& .MuiChip-icon': { color: 'inherit' } }} />
           <IconButton color="inherit" onClick={toggle} size="small" sx={{ mr: 1 }}
             aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             {mode === 'dark' ? <LightMode /> : <DarkMode />}
           </IconButton>
           <Button color="inherit" variant="outlined" startIcon={<Article />} onClick={handleGenerate} size="small"
-            sx={{ borderColor: 'rgba(255,255,255,0.5)' }}>Generate Doc</Button>
+            sx={{ borderColor: 'currentColor', opacity: 0.9 }}>Generate Doc</Button>
         </Toolbar>
       </AppBar>
 
@@ -202,7 +184,7 @@ export default function Layout() {
         <Alert severity={snack?.severity} onClose={() => setSnack(null)} variant="filled">{snack?.msg}</Alert>
       </Snackbar>
       <Snackbar open={!!reviewNotification} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert severity="success" onClose={() => setReviewNotification(null)} variant="filled" sx={{ width: '100%', fontSize: '0.95rem' }}>
+        <Alert severity="success" onClose={dismissReviewNotification} variant="filled" sx={{ width: '100%', fontSize: '0.95rem' }}>
           {reviewNotification}
         </Alert>
       </Snackbar>

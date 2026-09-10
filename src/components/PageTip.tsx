@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, AlertTitle, IconButton, Collapse } from '@mui/material';
-import { Close, Lightbulb } from '@mui/icons-material';
+import Close from '@mui/icons-material/Close';
+import Lightbulb from '@mui/icons-material/Lightbulb';
 import { getDismissedTipsKey } from '../store/storage';
 
 function getDismissed(): string[] {

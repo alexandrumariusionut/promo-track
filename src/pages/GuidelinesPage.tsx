@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { Box, Button, Typography, useTheme } from '@mui/material';
-import { OpenInNew } from '@mui/icons-material';
+import { Box, Button, Typography, CircularProgress, useTheme } from '@mui/material';
+import OpenInNew from '@mui/icons-material/OpenInNew';
 import DOMPurify from 'dompurify';
 import dayjs from 'dayjs';
 import { useOnboarding } from '../context/OnboardingContext';
-import { WIKI_HTML, WIKI_SYNCED_AT, WIKI_SOURCE_URL } from '../content/guidelines-wiki';
+import { loadWikiContent, WikiContent } from '../utils/wikiContent';
 
 /**
  * Builds scoped CSS for the wiki content, adapting to light/dark mode.
@@ -287,12 +287,27 @@ export default function GuidelinesPage() {
   const { guidelinesRead, markGuidelinesRead } = useOnboarding();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [showFallback, setShowFallback] = useState(false);
+  const [wiki, setWiki] = useState<WikiContent | null>(null);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    loadWikiContent(ctrl.signal)
+      .then(setWiki)
+      .catch((e) => { if (!ctrl.signal.aborted) setLoadError(e instanceof Error ? e.message : 'Failed to load'); });
+    return () => ctrl.abort();
+  }, []);
+
+  const WIKI_HTML = wiki?.html ?? '';
+  const WIKI_SYNCED_AT = wiki?.syncedAt ?? '';
+  const WIKI_SOURCE_URL = wiki?.sourceUrl ?? '';
 
   // Memoize sanitized HTML so DOMPurify only runs when the source changes
   const sanitizedHTML = useMemo(() => {
+    if (!WIKI_HTML) return '';
     const sanitized = sanitizeWikiHTML(WIKI_HTML);
     return cleanupWikiHTML(sanitized);
-  }, []);
+  }, [WIKI_HTML]);
 
   useEffect(() => {
     if (guidelinesRead || !sentinelRef.current) return;
@@ -335,15 +350,23 @@ export default function GuidelinesPage() {
       handlers.push([heading, handler]);
     });
     return () => { handlers.forEach(([el, h]) => el.removeEventListener('click', h)); };
-  }, []);
+  }, [sanitizedHTML]);
 
-  // Empty state when wiki hasn't been synced yet
+  if (!wiki && !loadError) {
+    return (
+      <Box role="status" aria-live="polite" sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <CircularProgress aria-label="Loading guidelines" />
+      </Box>
+    );
+  }
+
+  // Empty state when wiki hasn't been synced yet or the asset is missing
   if (!WIKI_HTML) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
         <Typography variant="h5" sx={{ mb: 2 }}>No Guidelines Content</Typography>
         <Typography color="text.secondary">
-          Run <code>npm run sync-wiki</code> to fetch guidelines from the IC Promotion Wiki.
+          {loadError ? `${loadError}. ` : ''}Run <code>npm run sync-wiki</code> to fetch guidelines from the IC Promotion Wiki.
         </Typography>
       </Box>
     );

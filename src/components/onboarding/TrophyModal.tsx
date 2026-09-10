@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box } from '@mui/material';
-import { EmojiEvents } from '@mui/icons-material';
+import EmojiEvents from '@mui/icons-material/EmojiEvents';
 import confetti from 'canvas-confetti';
 import { useOnboarding } from '../../context/OnboardingContext';
 import { getTrophyShownKey } from '../../store/storage';
@@ -32,7 +32,7 @@ export default function TrophyModal() {
       </DialogTitle>
       <DialogContent sx={{ textAlign: 'center', pt: 2 }}>
         <Box sx={{ mb: 2 }}>
-          <EmojiEvents sx={{ fontSize: 80, color: '#FFD700' }} />
+          <EmojiEvents sx={{ fontSize: 80, color: 'brand.trophy' }} />
         </Box>
         <Typography>
           Congratulations! You've completed the onboarding and unlocked all features.
