@@ -51,3 +51,4 @@ one pager.png
 .env
 .env.local
 .env.*.local
+.env.development.local

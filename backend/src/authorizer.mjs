@@ -28,8 +28,22 @@ const verifier = JwtRsaVerifier.create(
  * Lambda REQUEST authorizer for Midway JWT tokens.
  * Returns IAM policy Allow/Deny + context with verified alias.
  */
+/**
+ * API Gateway caches the returned policy per Authorization header
+ * (ReauthorizeEvery in template.yaml). The policy must therefore cover EVERY
+ * route of the stage, not just the one that triggered the authorizer, or the
+ * second request to a different route is denied with 403.
+ *   arn:aws:execute-api:<region>:<acct>:<apiId>/<stage>/<METHOD>/<path>
+ *   -> arn:aws:execute-api:<region>:<acct>:<apiId>/<stage>/*
+ */
+export function stageWildcardArn(routeArn) {
+  if (!routeArn || routeArn === '*') return '*';
+  const m = routeArn.match(/^(arn:aws:execute-api:[^:]*:[^:]*:[^/]+\/[^/]+)\//);
+  return m ? `${m[1]}/*` : routeArn;
+}
+
 export const handler = async (event) => {
-  const arn = event.routeArn || event.methodArn || '*';
+  const arn = stageWildcardArn(event.routeArn || event.methodArn || '*');
   const authHeader = event.headers?.authorization || event.headers?.Authorization || '';
 
   // Check Bearer scheme

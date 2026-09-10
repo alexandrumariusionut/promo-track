@@ -9,9 +9,9 @@
     "start": "node --import ./local/register-fake-dynamo.mjs local-server.mjs",
     "test": "cd .. && npx vitest run backend",
     "validate": "sam validate --lint",
-    "build": "sam build",
-    "deploy:beta": "sam deploy --config-env beta",
-    "deploy:prod": "sam deploy --config-env prod"
+    "build": "PATH=\"$PWD/node_modules/.bin:$PATH\" sam build",
+    "deploy:beta": "npm run build && sam deploy --config-env beta",
+    "deploy:prod": "npm run build && sam deploy --config-env prod"
   },
   "dependencies": {
     "aws-jwt-verify": "^4.0.1"
@@ -20,6 +20,7 @@
     "@aws-sdk/client-dynamodb": "^3.1097.0",
     "@aws-sdk/lib-dynamodb": "^3.1097.0",
     "cors": "^2.8.6",
+    "esbuild": "^0.25.9",
     "express": "^5.2.1"
   }
 }

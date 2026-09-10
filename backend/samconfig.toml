@@ -1,17 +1,19 @@
 # sam deploy --config-env beta | prod
 version = 0.1
 
-[default.global.parameters]
+[beta.deploy.parameters]
+stack_name = "promo-track-backend-beta"
 region = "eu-west-1"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
-
-[beta.deploy.parameters]
-stack_name = "promo-track-backend-beta"
-parameter_overrides = "Stage=beta"
+parameter_overrides = "Stage=beta AllowedOrigins='https://promo-track.beta.harmony.a2z.com,http://localhost:5173,http://localhost:5174'"
 
 [prod.deploy.parameters]
 stack_name = "promo-track-backend"
+region = "eu-west-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
 # After importing the legacy tables (README.md) these names point at the existing data:
-parameter_overrides = "Stage=prod ReviewsTableName=promo-track-reviews UsersTableName=promo-track-users"
+parameter_overrides = "Stage=prod ReviewsTableName=promo-track-reviews UsersTableName=promo-track-users AllowedOrigins='https://promo-track.harmony.a2z.com,https://promo-track.beta.harmony.a2z.com'"

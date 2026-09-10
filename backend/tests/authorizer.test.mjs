@@ -18,7 +18,7 @@ vi.mock('aws-jwt-verify/jwk', () => ({
   },
 }));
 
-const { handler } = await import('../src/authorizer.mjs');
+const { handler, stageWildcardArn } = await import('../src/authorizer.mjs');
 
 function makeEvent(authHeader) {
   return {
@@ -97,5 +97,13 @@ describe('Midway JWT Authorizer', () => {
     expect(config.jwksUri).toBe('https://midway-auth.amazon.com/jwks.json');
     expect(config.audience).toContain('promo-track.harmony.a2z.com');
     expect(config.audience).toContain('promo-track.beta.harmony.a2z.com');
+  });
+
+  test('policy resource covers the whole stage so cached policies work across routes', async () => {
+    verifyMock.mockResolvedValueOnce({ sub: 'u', iat: 1 });
+    const result = await handler({ routeArn: 'arn:aws:execute-api:eu-west-1:123:abc/prod/GET/userdata/u', headers: { authorization: 'Bearer eyJ.eyJ.sig' } });
+    expect(result.policyDocument.Statement[0].Resource).toBe('arn:aws:execute-api:eu-west-1:123:abc/prod/*');
+    expect(stageWildcardArn('*')).toBe('*');
+    expect(stageWildcardArn(undefined)).toBe('*');
   });
 });
