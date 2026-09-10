@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Box, Typography, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Chip, CircularProgress, Snackbar, Alert, Divider } from '@mui/material';
-import { Add, Share, ContentCopy, RateReview } from '@mui/icons-material';
+import { useState, useMemo } from 'react';
+import { Box, Typography, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Snackbar, Alert } from '@mui/material';
+import { Add, Share, RateReview } from '@mui/icons-material';
 import DimensionCoveragePanel from '../components/starr/DimensionCoveragePanel';
 import PageTip from '../components/PageTip';
 import { v4 as uuid } from 'uuid';
@@ -11,9 +11,9 @@ import { showUndo } from '../components/UndoSnackbar';
 import STARRCard from '../components/starr/STARRCard';
 import STARRFormDialog from '../components/starr/STARRFormDialog';
 import TemplatePickerDialog from '../components/starr/TemplatePickerDialog';
-import { createReviewSession } from '../utils/reviewApi';
+import ShareReviewDialog from '../components/starr/ShareReviewDialog';
 import { consumeReview, getUnmatchedComments, clearUnmatchedComments } from '../utils/reviewImport';
-import { suggestDimensions, DimensionSuggestion } from '../utils/aiPrompts';
+import { suggestDimensions, parseSuggestDimensionsResponse } from '../utils/aiPrompts';
 import { chat } from '../utils/ai';
 import { GUIDELINES } from '../data/levelGuidelines';
 import { validateSuggestions } from '../utils/dimensionScoring';
@@ -35,17 +35,15 @@ export default function STARRPage() {
 
   // Share for Review state
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [shareLoading, setShareLoading] = useState(false);
-  const [shareLink, setShareLink] = useState('');
-  const [outlookUrl, setOutlookUrl] = useState('');
-  const [shareError, setShareError] = useState('');
+  const [reviewLinkVersion, setReviewLinkVersion] = useState(0); // bump to re-read pending-review key
   const [snack, setSnack] = useState<string | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
 
   const [unmatchedDialogOpen, setUnmatchedDialogOpen] = useState(false);
   const [unmatchedComments, setUnmatchedComments] = useState(getUnmatchedComments());
 
-  const hasPendingReview = !!localStorage.getItem(getPendingReviewKey());
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reviewLinkVersion is the invalidation signal
+  const hasPendingReview = useMemo(() => !!localStorage.getItem(getPendingReviewKey()), [reviewLinkVersion]);
   const hasUnmatchedComments = unmatchedComments.length > 0;
 
   const handleCheckForReview = async () => {
@@ -76,49 +74,6 @@ export default function STARRPage() {
       }
     } finally {
       setCheckLoading(false);
-    }
-  };
-
-  const handleShareForReview = async () => {
-    setShareLoading(true);
-    setShareError('');
-    setShareLink('');
-    setOutlookUrl('');
-    setShareDialogOpen(true);
-    try {
-      const { reviewUrl } = await createReviewSession({
-        entries: state.star.map(e => ({
-          id: e.id, title: e.title, situation: e.situation,
-          task: e.task, action: e.action, results: e.results,
-          principles: e.principles,
-          reviewComments: e.reviewComments || [],
-        })),
-        employeeName: state.profile.name,
-        targetLevel: state.profile.targetLevel,
-      });
-      setShareLink(reviewUrl);
-      const sid = reviewUrl.split('/review/')[1];
-      if (sid) localStorage.setItem(getPendingReviewKey(), sid);
-
-      // Build Outlook compose URL for the dialog button
-      const managerEmail = state.profile.manager?.includes('@') ? state.profile.manager : '';
-      const managerFirst = state.profile.manager?.split(/[\s@]/)[0] || 'Manager';
-      const subject = `Promotion Document Review Request - ${state.profile.name}`;
-      const body = `Hi ${managerFirst},
-
-I've prepared my promotion document for your review. Please use the link below to review my STAR narratives and leave your feedback:
-
-${reviewUrl}
-
-The link will be active for 7 days. You can add comments directly on each entry.
-
-Thank you,
-${state.profile.name}`;
-      setOutlookUrl(`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(managerEmail)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-    } catch (e) {
-      setShareError(e instanceof Error ? e.message : 'Failed to create review session');
-    } finally {
-      setShareLoading(false);
     }
   };
 
@@ -153,9 +108,9 @@ ${state.profile.name}`;
         try {
           const prompt = suggestDimensions(entry, guidelines);
           const raw = await chat(prompt.system, prompt.user);
-          const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          const parsed = JSON.parse(cleaned);
-          const suggestions: DimensionSuggestion[] = parsed.suggestions || [];
+          // Strict parse: only ids from the current level's guideline list survive
+          const allowedIds = new Set(guidelines.map(g => g.id));
+          const suggestions = parseSuggestDimensionsResponse(raw, allowedIds);
 
           // Exclude already-confirmed dimensions
           const confirmed = new Set(entry.dimensions || []);
@@ -216,7 +171,9 @@ ${state.profile.name}`;
             </Button>
           )}
           {state.star.length > 0 && (
-            <Button variant="outlined" startIcon={<Share />} onClick={handleShareForReview}>Share for Review</Button>
+            <Button variant="outlined" startIcon={<Share />} onClick={() => setShareDialogOpen(true)}>
+              {hasPendingReview ? 'Manage review link' : 'Share for Review'}
+            </Button>
           )}
           <Button variant="outlined" onClick={() => setTemplateOpen(true)}>Use Template</Button>
           <Button variant="contained" startIcon={<Add />} onClick={openNew}>New Entry</Button>
@@ -342,32 +299,13 @@ ${state.profile.name}`;
         </>)}
       </Dialog>
 
-      {/* Share Review Link Dialog */}
-      <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Share for Review</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
-          {shareLoading && <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress /></Box>}
-          {shareError && <Alert severity="error">{shareError}</Alert>}
-          {shareLink && (
-            <>
-              <Alert severity="success">Review link created! Send it to your manager via Outlook.</Alert>
-              {outlookUrl && (
-                <Button variant="contained" startIcon={<Share />} onClick={() => window.open(outlookUrl, '_blank')} sx={{ bgcolor: '#0078d4', '&:hover': { bgcolor: '#106ebe' } }}>
-                  Open in Outlook
-                </Button>
-              )}
-              <Divider>or copy the link</Divider>
-              <TextField fullWidth value={shareLink} slotProps={{ input: { readOnly: true } }} size="small" />
-              <Button startIcon={<ContentCopy />} variant="outlined" size="small" onClick={() => { navigator.clipboard.writeText(shareLink); setSnack('Link copied!'); }}>
-                Copy Link
-              </Button>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShareDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      <ShareReviewDialog
+        open={shareDialogOpen}
+        onClose={() => setShareDialogOpen(false)}
+        state={state}
+        onNotify={setSnack}
+        onChanged={() => setReviewLinkVersion((v) => v + 1)}
+      />
 
       {/* Unmatched Manager Feedback Dialog */}
       <Dialog open={unmatchedDialogOpen} onClose={() => setUnmatchedDialogOpen(false)} maxWidth="sm" fullWidth>

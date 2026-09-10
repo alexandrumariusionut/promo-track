@@ -1,7 +1,15 @@
 import { apiFetch } from './apiFetch';
 import { REVIEW_API_URL as REVIEW_API } from '../config';
 
-export async function createReviewSession(data: { entries: unknown[], employeeName: string, targetLevel: string }): Promise<{ sessionId: string; reviewUrl: string }> {
+export interface CreateReviewInput {
+  entries: unknown[];
+  employeeName: string;
+  targetLevel: string;
+  /** Aliases allowed to open the review. Empty/omitted = anyone with the link. */
+  reviewerAliases?: string[];
+}
+
+export async function createReviewSession(data: CreateReviewInput): Promise<{ sessionId: string; reviewUrl: string }> {
   const res = await apiFetch(`${REVIEW_API}/reviews`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -9,6 +17,14 @@ export async function createReviewSession(data: { entries: unknown[], employeeNa
   });
   if (!res.ok) throw new Error('Failed to create review session');
   return res.json();
+}
+
+/** Owner-only: invalidate a shared review link. Resolves true if it existed. */
+export async function revokeReviewSession(sessionId: string): Promise<boolean> {
+  const res = await apiFetch(`${REVIEW_API}/reviews/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+  if (res.status === 404) return false;
+  if (!res.ok) throw new Error(`Failed to revoke review link (${res.status})`);
+  return true;
 }
 
 export async function getReview(sessionId: string) {
