@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'app', 'docs', 'coverage', '**/.aws-sam/**', '**/coverage/**', 'backend/**/node_modules/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -19,5 +19,11 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+  },
+  {
+    // Context providers and imperative snackbar APIs intentionally export a
+    // component alongside a hook/function; HMR falls back to a full reload.
+    files: ['src/store/*.tsx', 'src/context/*.tsx', 'src/components/ErrorSnackbar.tsx', 'src/components/UndoSnackbar.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
 ])

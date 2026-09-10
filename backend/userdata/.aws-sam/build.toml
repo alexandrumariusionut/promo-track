@@ -9,4 +9,25 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["GetUserDataFunction", "SaveUserDataFunction"]
 
+[function_build_definitions.ae337227-bc4a-45c2-8545-041e7b0b34bc]
+codeuri = "/Users/marindru/Documents/Kiro Power/powers/oh-my-kiro-cli/promo-track/backend/userdata/src"
+runtime = "nodejs20.x"
+architecture = "arm64"
+handler = "authorizer.handler"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["MidwayAuthorizerFunction"]
+
+[function_build_definitions.ae337227-bc4a-45c2-8545-041e7b0b34bc.metadata]
+BuildMethod = "esbuild"
+
+[function_build_definitions.ae337227-bc4a-45c2-8545-041e7b0b34bc.metadata.BuildProperties]
+Minify = false
+Target = "es2022"
+Format = "esm"
+OutExtension = [".js=.mjs"]
+EntryPoints = ["authorizer.mjs"]
+External = ["@aws-sdk/*"]
+
+
 [layer_build_definitions]

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Box, Typography, Paper, Chip, ToggleButtonGroup, ToggleButton } from '@mui/material';
-import { Star, History, RateReview, Assessment, Edit } from '@mui/icons-material';
+import { Star, History } from '@mui/icons-material';
 import { useApp } from '../store/AppContext';
 
 type ItemType = 'star' | 'activity';

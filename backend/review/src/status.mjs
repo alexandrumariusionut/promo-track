@@ -1,22 +1,30 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { respond, error, serverError, callerAlias, canAccessReview, isExpired } from './lib/http.mjs';
 
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient());
-const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+const ddb = DynamoDBDocumentClient.from(new DynamoDBClient(), {
+  marshallOptions: { removeUndefinedValues: true },
+});
 
 export const handler = async (event) => {
   try {
-    const { sessionId } = event.pathParameters;
+    const alias = callerAlias(event);
+    if (!alias) return error(401, 'Unauthorized');
+
+    const { sessionId } = event.pathParameters || {};
+    if (!sessionId) return error(400, 'sessionId is required');
+
     const { Item } = await ddb.send(new GetCommand({
       TableName: process.env.TABLE_NAME, Key: { sessionId },
-      ProjectionExpression: '#s, comments',
+      ProjectionExpression: '#s, comments, ownerAlias, reviewerAliases, expiresAt',
       ExpressionAttributeNames: { '#s': 'status' },
     }));
-    if (!Item) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Review not found' }) };
+    if (!Item || isExpired(Item) || !canAccessReview(Item, alias)) return error(404, 'Review not found');
+
     const result = { status: Item.status };
     if (Item.status === 'reviewed') result.comments = Item.comments;
-    return { statusCode: 200, headers, body: JSON.stringify(result) };
+    return respond(200, result);
   } catch (e) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
+    return serverError(e, { handler: 'status' });
   }
 };

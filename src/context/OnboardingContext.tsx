@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useApp } from '../store/AppContext';
+import { getTrophyShownKey } from '../store/storage';
 
 /**
  * Feature flag: set to `true` to re-enable the progressive tab unlock system.
@@ -28,7 +29,7 @@ const TAB_STAGE_MAP: Record<string, number> = {
   '/documents': 3,
 };
 
-const CELEBRATION_MESSAGES: Record<number, string> = {
+export const CELEBRATION_MESSAGES: Record<number, string> = {
   1: '📖 Guidelines complete! Profile & FAQ unlocked!',
   2: '✅ Profile complete! STAR Entries unlocked!',
   3: '⭐ All tabs unlocked! You\'re all set! 🏆',
@@ -103,7 +104,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   });
 
   const onboardingRef = useRef(onboarding);
-  onboardingRef.current = onboarding;
+  useEffect(() => { onboardingRef.current = onboarding; }, [onboarding]);
 
   // Persist on every state change
   useEffect(() => {
@@ -177,19 +178,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     return UNLOCK_HINTS[path] ?? '';
   }, []);
 
-  const [pendingCelebration, setPendingCelebration] = useState<number | null>(null);
-
-  // Pop from celebration queue into pendingCelebration
-  useEffect(() => {
-    if (pendingCelebration !== null) return;
-    if (onboarding.celebrationQueue.length === 0) return;
-    const [first, ...rest] = onboarding.celebrationQueue;
-    setPendingCelebration(first);
-    setOnboarding(prev => ({ ...prev, celebrationQueue: rest }));
-  }, [onboarding.celebrationQueue, pendingCelebration]);
+  // The pending celebration is simply the head of the queue; dismissing pops it.
+  const pendingCelebration = onboarding.celebrationQueue.length > 0 ? onboarding.celebrationQueue[0] : null;
 
   const dismissCelebration = useCallback(() => {
-    setPendingCelebration(null);
+    setOnboarding(prev => ({ ...prev, celebrationQueue: prev.celebrationQueue.slice(1) }));
   }, []);
 
   const resetOnboarding = useCallback(() => {
@@ -199,8 +192,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       celebrationQueue: [],
     };
     setOnboarding(reset);
-    setPendingCelebration(null);
-    localStorage.removeItem('promo-track-trophy-shown');
+    localStorage.removeItem(getTrophyShownKey());
   }, []);
 
   const value: OnboardingContextValue = {

@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { Send, CheckCircle } from '@mui/icons-material';
 import { getReview, submitComments } from '../utils/reviewApi';
+import { getHarmonyUser } from '../utils/harmonyUser';
 
 interface ReviewEntry {
   id: string;
@@ -33,6 +34,11 @@ export default function ReviewPage() {
   const [comments, setComments] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [userAlias, setUserAlias] = useState<string | null>(null);
+
+  useEffect(() => {
+    getHarmonyUser().then(u => { if (u) setUserAlias(u.login); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -102,7 +108,7 @@ export default function ReviewPage() {
         </Typography>
       </Paper>
 
-      {data.entries.map((entry, i) => (
+      {data.entries.map((entry) => (
         <Paper key={entry.id} sx={{ p: 3, mb: 2 }}>
           <Typography variant="h6" sx={{ fontWeight: 600 }}>{entry.title}</Typography>
           {entry.principles.length > 0 && (
@@ -137,7 +143,11 @@ export default function ReviewPage() {
                     {c.source === 'engineer' ? 'Employee' : 'Manager'}
                   </Typography>
                   <Typography variant="body2" sx={{ lineHeight: 1.7, mt: 0.25 }}>{c.text}</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', mt: 0.5 }}>{c.date}</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', mt: 0.5 }}>
+                    {(c as { commenterAlias?: string }).commenterAlias
+                      ? `From ${(c as { commenterAlias?: string }).commenterAlias}@ on ${new Date(c.date).toLocaleDateString()}`
+                      : c.date}
+                  </Typography>
                 </Box>
               ))}
             </Box>
@@ -155,7 +165,12 @@ export default function ReviewPage() {
         </Paper>
       ))}
 
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: 3, mb: 4, gap: 2 }}>
+        {userAlias && (
+          <Typography variant="caption" color="text.secondary">
+            You will submit as {userAlias}@
+          </Typography>
+        )}
         <Button
           variant="contained"
           size="large"

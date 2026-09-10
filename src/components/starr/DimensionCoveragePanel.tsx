@@ -1,222 +1,512 @@
 import { useState } from 'react';
-import { Box, Paper, Typography, Chip, Button, CircularProgress, Collapse, IconButton, Tooltip, Divider, LinearProgress } from '@mui/material';
-import { Analytics, ExpandMore, ExpandLess, Refresh } from '@mui/icons-material';
+import {
+  Box,
+  Paper,
+  Typography,
+  Chip,
+  Button,
+  Collapse,
+  IconButton,
+  Divider,
+  CircularProgress,
+  Popover,
+  Tooltip,
+  Card,
+} from '@mui/material';
+import {
+  Analytics,
+  ExpandMore,
+  ExpandLess,
+  School,
+  InfoOutlined,
+  EditNote,
+  BugReport,
+  RocketLaunch,
+  PublishedWithChanges,
+  AdminPanelSettings,
+  Psychology,
+  Balance,
+  MenuBook,
+} from '@mui/icons-material';
 import { useApp } from '../../store/AppContext';
-import { FUNCTIONAL_DIMENSIONS, LEVEL_GUIDELINES } from '../../data/levelGuidelines';
+import { GUIDELINES, BONUS_TAGS } from '../../data/levelGuidelines';
+import { scoreDimensions, DimensionScore, DimensionStatus } from '../../utils/dimensionScoring';
+import { gapCoaching, GapCoachingResponse } from '../../utils/aiPrompts';
 import { chat } from '../../utils/ai';
-import { PROMPTS } from '../../utils/aiPrompts';
-import { DimensionAnalysis } from '../../types';
-
-type DimStatus = 'strong' | 'moderate' | 'weak' | 'gap';
-
-const STATUS_BAR: Record<DimStatus, { value: number; color: string; label: string }> = {
-  strong:   { value: 100, color: 'primary.main',              label: 'Strong' },
-  moderate: { value: 66,  color: 'primary.light',             label: 'Growing' },
-  weak:     { value: 33,  color: 'action.disabled',           label: 'Emerging' },
-  gap:      { value: 0,   color: 'action.disabledBackground', label: 'Not yet started' },
-};
-
-const DIMENSION_PROMPTS: Record<string, string> = {
-  'Ambiguity': 'A time you solved a problem with no SOP or clear procedure to follow.',
-  'Scope & Influence': 'A project where you took on responsibility beyond your usual tasks or helped others improve.',
-  'Execution': 'A task you drove from start to finish, hitting targets without needing step-by-step guidance.',
-  'Problem Complexity': 'A difficult technical issue you debugged that required deep investigation.',
-  'Communication': 'When you explained a technical tradeoff or escalation path to stakeholders.',
-  'Impact': 'A project or initiative that delivered measurable results — time saved, tickets reduced, or team efficiency improved.',
-  'Process Improvement': 'A workflow, tool, SOP, or KB article you created or improved for the team.',
-};
+import { AISuggestedDimension } from '../../types';
 
 interface Props {
-  onStartEntry?: () => void;
+  onStartEntry?: (guidelineId?: string) => void;
+  onOpenEntry?: (entryId: string) => void;
 }
 
-export default function DimensionCoveragePanel({ onStartEntry }: Props) {
+/**
+ * Maps icon string id → MUI icon component.
+ * Keeps levelGuidelines.ts free of React imports.
+ */
+const ICON_MAP: Record<string, React.ElementType> = {
+  BugReport,
+  RocketLaunch,
+  PublishedWithChanges,
+  AdminPanelSettings,
+  Psychology,
+  Balance,
+  MenuBook,
+};
+
+/**
+ * Maps internal scoring status to user-friendly display labels.
+ * Two statuses: 1+ confirmed = Well covered, 0 = No examples yet.
+ */
+const STATUS_DISPLAY: Record<DimensionStatus, { label: string; color: 'success' | 'default' }> = {
+  strong: { label: 'Well covered', color: 'success' },
+  gap: { label: 'No examples yet', color: 'default' },
+};
+
+/**
+ * Returns a plain-language evidence count badge string.
+ */
+function evidenceCountLabel(count: number): string {
+  if (count === 0) return 'none yet';
+  if (count === 1) return '1 example';
+  return `${count} examples`;
+}
+
+export default function DimensionCoveragePanel({ onStartEntry, onOpenEntry }: Props) {
   const { state, dispatch } = useApp();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [expanded, setExpanded] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [coachingData, setCoachingData] = useState<Record<string, GapCoachingResponse>>({});
+  const [coachingLoading, setCoachingLoading] = useState<Set<string>>(new Set());
+  const [coachingError, setCoachingError] = useState<Record<string, string>>({});
+  const [infoAnchor, setInfoAnchor] = useState<HTMLElement | null>(null);
 
-  const guidelines = LEVEL_GUIDELINES[state.profile.level];
-  // Clear stale analysis data from old format or when no entries exist
-  const rawAnalysis = state.dimensionAnalysis;
-  const analysis = rawAnalysis && 'dimensions' in rawAnalysis && state.star.length > 0 ? rawAnalysis : undefined;
+  const targetLevel = state.profile.targetLevel;
+  const guidelines = GUIDELINES[targetLevel as 'L4' | 'L5'];
 
+  // If no guidelines defined for this level, don't render
   if (!guidelines) return null;
 
-  const hasEntries = state.star.length > 0;
+  const scores = scoreDimensions(state.star, guidelines);
+  // "Covered" means 1+ confirmed evidence for a guideline
+  const coveredCount = scores.filter(s => s.count > 0).length;
+  const totalCount = guidelines.length;
 
-  const movingCriteria = guidelines.movingToNextSummary.map((s, i) => `${i + 1}. ${s}`).join('\n');
+  // Compute pending AI suggestions per guideline (from all entries)
+  const pendingSuggestionsMap = new Map<string, { entryId: string; entryTitle: string; suggestion: AISuggestedDimension }[]>();
+  for (const entry of state.star) {
+    if (!entry.aiSuggestedDimensions) continue;
+    for (const suggestion of entry.aiSuggestedDimensions) {
+      const existing = pendingSuggestionsMap.get(suggestion.id) || [];
+      existing.push({ entryId: entry.id, entryTitle: entry.title, suggestion });
+      pendingSuggestionsMap.set(suggestion.id, existing);
+    }
+  }
 
-  const handleAnalyze = async () => {
-    setLoading(true);
-    setError('');
+  const handleAcceptSuggestion = (entryId: string, dimensionId: string) => {
+    const entry = state.star.find(s => s.id === entryId);
+    if (!entry) return;
+    const updatedDimensions = [...(entry.dimensions || []), dimensionId];
+    const updatedAiSuggestions = (entry.aiSuggestedDimensions || []).filter(s => s.id !== dimensionId);
+    dispatch({
+      type: 'UPDATE_STAR',
+      payload: {
+        ...entry,
+        dimensions: updatedDimensions,
+        aiSuggestedDimensions: updatedAiSuggestions.length > 0 ? updatedAiSuggestions : undefined,
+      },
+    });
+  };
+
+  const handleDismissSuggestion = (entryId: string, dimensionId: string) => {
+    const entry = state.star.find(s => s.id === entryId);
+    if (!entry) return;
+    const updatedAiSuggestions = (entry.aiSuggestedDimensions || []).filter(s => s.id !== dimensionId);
+    dispatch({
+      type: 'SET_ENTRY_AI_SUGGESTIONS',
+      payload: { entryId, suggestions: updatedAiSuggestions },
+    });
+  };
+
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleCoachMe = async (score: DimensionScore) => {
+    const guideline = guidelines.find(g => g.id === score.competencyId);
+    if (!guideline) return;
+
+    setCoachingLoading(prev => new Set(prev).add(score.competencyId));
+    setCoachingError(prev => {
+      const next = { ...prev };
+      delete next[score.competencyId];
+      return next;
+    });
+
     try {
-      const prompt = PROMPTS.analyzeDimensions(state, movingCriteria);
-      let raw: string;
-      try {
-        raw = await chat(prompt.system, prompt.user);
-      } catch (e) {
-        // Retry once after 2s on transient failures (503, timeout)
-        await new Promise(r => setTimeout(r, 2000));
-        raw = await chat(prompt.system, prompt.user);
-      }
+      const competencyForCoaching = {
+        id: guideline.id,
+        name: guideline.name,
+        rubric: guideline.rubric,
+      };
+      const prompt = gapCoaching(competencyForCoaching, score.entryTitles, targetLevel);
+      const raw = await chat(prompt.system, prompt.user);
       const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(cleaned) as Omit<DimensionAnalysis, 'analyzedAt'>;
-      dispatch({
-        type: 'SET_DIMENSION_ANALYSIS',
-        payload: { ...parsed, analyzedAt: new Date().toISOString() },
-      });
-      setExpanded(true);
+      const parsed: GapCoachingResponse = JSON.parse(cleaned);
+      setCoachingData(prev => ({ ...prev, [score.competencyId]: parsed }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Analysis failed');
+      setCoachingError(prev => ({
+        ...prev,
+        [score.competencyId]: e instanceof Error ? e.message : 'Coaching failed',
+      }));
     } finally {
-      setLoading(false);
+      setCoachingLoading(prev => {
+        const next = new Set(prev);
+        next.delete(score.competencyId);
+        return next;
+      });
     }
   };
 
-  const getDimStatus = (fd: string): DimStatus => {
-    if (!analysis?.dimensions[fd]) return 'gap';
-    return analysis.dimensions[fd].strength;
-  };
-
-  const coveredCount = analysis
-    ? FUNCTIONAL_DIMENSIONS.filter(fd => getDimStatus(fd) === 'strong' || getDimStatus(fd) === 'moderate').length
-    : 0;
-
-  const coveredDimensions = analysis
-    ? FUNCTIONAL_DIMENSIONS.filter(fd => analysis.dimensions[fd])
-    : [];
-
-  // Mode A: No analysis yet — show the guide
-  if (!analysis) {
-    return (
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-          Build Your Promotion Story
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Each STAR entry you write covers one or more promotion dimensions. Here's what to write about — start with whichever feels most natural.
-        </Typography>
-        {FUNCTIONAL_DIMENSIONS.map(fd => (
-          <Box key={fd} sx={{ mb: 1.5 }}>
-            <Typography variant="body2"><strong>{fd}</strong></Typography>
-            <Typography variant="caption" color="text.secondary">{DIMENSION_PROMPTS[fd]}</Typography>
-            {onStartEntry && (
-              <Button size="small" variant="outlined" onClick={onStartEntry} sx={{ display: 'block', mt: 0.5, textTransform: 'none', fontSize: '0.75rem' }}>
-                Write about this
-              </Button>
-            )}
-          </Box>
-        ))}
-        {hasEntries && (
-          <Button size="small" variant="contained" startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <Analytics />}
-            onClick={handleAnalyze} disabled={loading} sx={{ mt: 1 }}>
-            {loading ? 'Analyzing...' : 'Analyze My Entries'}
-          </Button>
-        )}
-        {error && <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>{error}</Typography>}
-      </Paper>
-    );
-  }
-
-  // Mode B: Has analysis — show progress bars + expandable details + uncovered guidance
   return (
     <Paper sx={{ p: 2, mb: 3 }}>
-      {/* Header row */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
         <Analytics color="primary" sx={{ fontSize: 20 }} />
         <Typography variant="subtitle1" sx={{ fontWeight: 600, flex: 1 }}>
-          Promotion Readiness — {state.profile.targetLevel} Dimensions
-          <Chip label={`${coveredCount}/${FUNCTIONAL_DIMENSIONS.length}`} size="small"
-            color="primary" sx={{ ml: 1 }} />
-        </Typography>
-        <Tooltip title="Re-analyze">
-          <IconButton size="small" onClick={handleAnalyze} disabled={loading}>
-            <Refresh sx={{ fontSize: 18 }} />
+          Promotion Readiness — {targetLevel} Role Guidelines
+          <IconButton
+            size="small"
+            sx={{ ml: 0.5, p: 0.25 }}
+            onClick={(e) => setInfoAnchor(e.currentTarget)}
+            aria-label="How this works"
+          >
+            <InfoOutlined sx={{ fontSize: 16 }} />
           </IconButton>
-        </Tooltip>
-        <IconButton size="small" onClick={() => setExpanded(v => !v)}>
-          {expanded ? <ExpandLess /> : <ExpandMore />}
-        </IconButton>
+        </Typography>
       </Box>
 
-      {error && <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>{error}</Typography>}
-
-      {/* Dimension progress bars — all 7 always shown */}
-      <Box sx={{ mt: 1 }}>
-        {FUNCTIONAL_DIMENSIONS.map(fd => {
-          const cfg = STATUS_BAR[getDimStatus(fd)];
-          return (
-            <Box key={fd} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-              <Typography variant="body2" sx={{ width: 150, flexShrink: 0, fontSize: '0.8rem' }}>{fd}</Typography>
-              <LinearProgress variant="determinate" value={cfg.value} sx={{
-                width: 120, flexShrink: 0, height: 6, borderRadius: 3, backgroundColor: 'grey.200',
-                '& .MuiLinearProgress-bar': { backgroundColor: cfg.color, borderRadius: 3 },
-              }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
-                {cfg.label}
-              </Typography>
-            </Box>
-          );
-        })}
-      </Box>
-
-      {/* Expandable details */}
-      <Collapse in={expanded}>
-        <Box sx={{ mt: 2 }}>
-          {/* Covered dimensions — summary-first layout */}
-          {coveredDimensions.map(fd => {
-            const dim = analysis.dimensions[fd];
+      {/* Progress rail — segmented bar */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+        <Box
+          role="progressbar"
+          aria-valuenow={coveredCount}
+          aria-valuemin={0}
+          aria-valuemax={totalCount}
+          aria-label={`${coveredCount} of ${totalCount} guidelines covered`}
+          sx={{ display: 'flex', gap: '3px', flex: 1, maxWidth: 220 }}
+        >
+          {scores.map((score, i) => {
+            const isCovered = score.count > 0;
             return (
-              <Box key={fd} sx={{ mb: 1.5 }}>
-                <Typography variant="body2" sx={{ lineHeight: 1.5 }}>
-                  <strong>{fd}:</strong> {dim.summary}
-                </Typography>
-                {dim.entryTitles.length > 0 && (
-                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>
-                    Based on: {dim.entryTitles.join(', ')}
-                  </Typography>
-                )}
-              </Box>
+              <Box
+                key={i}
+                sx={{
+                  flex: 1,
+                  height: 8,
+                  borderRadius: 1,
+                  bgcolor: isCovered ? 'success.main' : 'divider',
+                  border: isCovered ? '1px solid' : '1.5px dashed',
+                  borderColor: isCovered ? 'success.main' : 'text.disabled',
+                  transition: 'background-color 0.2s, border-color 0.2s',
+                }}
+              />
             );
           })}
+        </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+          {coveredCount} of {totalCount} covered
+        </Typography>
+      </Box>
 
-          {/* Gaps section */}
-          {analysis.gaps.length > 0 && (
-            <>
-              <Divider sx={{ my: 1.5 }} />
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Gaps to Address</Typography>
-              {analysis.gaps.map(gap => (
-                <Box key={gap.dimension} sx={{ mb: 1.5 }}>
-                  <Typography variant="body2" sx={{ lineHeight: 1.5 }}>
-                    <strong>{gap.dimension}:</strong> {gap.suggestion}
+      {/* Summary caption */}
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+        Only tags you confirm are counted
+      </Typography>
+
+      {/* "Also valued by reviewers" bonus chips moved to footer */}
+
+      {/* How this works popover */}
+      <Popover
+        open={Boolean(infoAnchor)}
+        anchorEl={infoAnchor}
+        onClose={() => setInfoAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        <Box sx={{ p: 2, maxWidth: 340 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>How this works</Typography>
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            Each row is one of the 7 L4 role guidelines the GSD2 review panel assesses your evidence against.
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            You tag each narrative with the guidelines it demonstrates (or accept AI suggestions).
+            Every confirmed tag becomes evidence here.
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            One solid example gives evidence for a guideline. More varied examples strengthen
+            consistency (&ldquo;Rule of Three&rdquo; is a good recommendation for strong promos).
+          </Typography>
+          <Typography variant="body2">
+            You do not need every guideline covered to be promotable.
+          </Typography>
+        </Box>
+      </Popover>
+
+      <Divider sx={{ mb: 1.5 }} />
+
+      {/* Per-guideline accordion cards */}
+      {scores.map((score) => {
+        const guideline = guidelines.find(g => g.id === score.competencyId)!;
+        const display = STATUS_DISPLAY[score.status];
+        const isExpanded = expandedRows.has(score.competencyId);
+        const coaching = coachingData[score.competencyId];
+        const isCoachLoading = coachingLoading.has(score.competencyId);
+        const coachError = coachingError[score.competencyId];
+        const pendingForRow = pendingSuggestionsMap.get(score.competencyId) || [];
+        const isCovered = score.count > 0;
+        const IconComponent = ICON_MAP[guideline.icon];
+
+        return (
+          <Card
+            key={score.competencyId}
+            variant="outlined"
+            sx={{ mb: 1.5 }}
+          >
+            {/* Card header — clickable accordion trigger */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1.5,
+                p: 1.5,
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'action.hover' },
+              }}
+              onClick={() => toggleRow(score.competencyId)}
+              role="button"
+              aria-expanded={isExpanded}
+              aria-label={`${guideline.leadClause}: ${display.label}`}
+            >
+              {/* Left icon */}
+              {IconComponent && (
+                <IconComponent
+                  sx={{
+                    fontSize: 24,
+                    color: isCovered ? 'primary.main' : 'text.disabled',
+                    mt: 0.25,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+
+              {/* Text content */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: 700, lineHeight: 1.4 }}
+                >
+                  {guideline.leadClause}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', mt: 0.25, maxWidth: '65ch', lineHeight: 1.4 }}
+                >
+                  {guideline.name}
+                </Typography>
+              </Box>
+
+              {/* Right side: status chip + count + expand icon */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                  <Chip label={display.label} size="small" color={display.color} variant="outlined" />
+                  <Typography variant="caption" color="text.secondary">
+                    {evidenceCountLabel(score.count)}
                   </Typography>
                 </Box>
-              ))}
-            </>
-          )}
-        </Box>
-      </Collapse>
-
-      {/* Uncovered guidance — after the expandable section */}
-      {analysis.gaps.length > 0 && (
-        <>
-          <Divider sx={{ my: 1.5 }} />
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>What to Write Next</Typography>
-          {analysis.gaps.map(gap => (
-            <Box key={gap.dimension} sx={{ mb: 1.5 }}>
-              <Typography variant="body2">
-                <strong>{gap.dimension}:</strong> {DIMENSION_PROMPTS[gap.dimension]}
-              </Typography>
-              {onStartEntry && (
-                <Button size="small" variant="outlined" onClick={onStartEntry} sx={{ mt: 0.5, textTransform: 'none', fontSize: '0.75rem' }}>
-                  Write about this
-                </Button>
-              )}
+                {pendingForRow.length > 0 && (
+                  <Chip
+                    label={`+${pendingForRow.length} suggested`}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.7rem', color: 'info.main', borderColor: 'info.main' }}
+                  />
+                )}
+                <IconButton size="small" sx={{ p: 0 }} tabIndex={-1}>
+                  {isExpanded ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
+                </IconButton>
+              </Box>
             </Box>
-          ))}
-        </>
-      )}
+
+            {/* Expandable detail — with left accent border */}
+            <Collapse in={isExpanded}>
+              <Box
+                sx={{
+                  pl: 4,
+                  pr: 2,
+                  py: 1.5,
+                  borderLeft: '3px solid',
+                  borderLeftColor: isCovered ? 'success.main' : 'primary.main',
+                  ml: 1.5,
+                  mb: 1,
+                }}
+              >
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontStyle: 'italic' }}>
+                  {guideline.rubric}
+                </Typography>
+
+                {/* Tagged entry titles */}
+                {score.entryTitles.length > 0 && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>Evidence entries:</Typography>
+                    {score.entryTitles.map((title, i) => (
+                      <Typography
+                        key={score.entryIds[i]}
+                        variant="caption"
+                        color="primary"
+                        sx={{
+                          display: 'block',
+                          cursor: onOpenEntry ? 'pointer' : 'default',
+                          textDecoration: onOpenEntry ? 'underline' : 'none',
+                          '&:hover': onOpenEntry ? { color: 'primary.dark' } : {},
+                        }}
+                        onClick={() => onOpenEntry?.(score.entryIds[i])}
+                      >
+                        • {title}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Pending AI suggestions for this guideline */}
+                {pendingForRow.length > 0 && (
+                  <Box sx={{ mb: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                      AI suggestions — they only count after you add them
+                    </Typography>
+                    {pendingForRow.map(({ entryId, entryTitle, suggestion }) => (
+                      <Box key={`${entryId}-${suggestion.id}`} sx={{ mb: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 500, display: 'block' }}>
+                          {entryTitle}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontStyle: 'italic', mb: 0.5 }}>
+                          &ldquo;{suggestion.justification}&rdquo;
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="primary"
+                            onClick={(e) => { e.stopPropagation(); handleAcceptSuggestion(entryId, suggestion.id); }}
+                            sx={{ textTransform: 'none', fontSize: '0.7rem', py: 0.25, px: 1 }}
+                          >
+                            Add as evidence
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="text"
+                            color="inherit"
+                            onClick={(e) => { e.stopPropagation(); handleDismissSuggestion(entryId, suggestion.id); }}
+                            sx={{ textTransform: 'none', fontSize: '0.7rem', py: 0.25, px: 1 }}
+                          >
+                            Dismiss
+                          </Button>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Coach me button — only for non-well-covered rows */}
+                {score.status !== 'strong' && (
+                  <Box sx={{ mt: 0.5 }}>
+                    <Button
+                      size="small"
+                      variant="text"
+                      startIcon={isCoachLoading ? <CircularProgress size={14} /> : <School />}
+                      onClick={(e) => { e.stopPropagation(); handleCoachMe(score); }}
+                      disabled={isCoachLoading}
+                      sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                    >
+                      {isCoachLoading ? 'Loading...' : 'What could I write for this?'}
+                    </Button>
+                    {coachError && (
+                      <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.25 }}>
+                        {coachError}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+
+                {/* Coaching advice */}
+                {coaching && (
+                  <Box sx={{ mt: 1, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                      What counts here:
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
+                      {coaching.advice.whatCountsHere}
+                    </Typography>
+
+                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                      Story starters:
+                    </Typography>
+                    {coaching.advice.storyShapes.map((q, i) => (
+                      <Typography key={i} variant="caption" sx={{ display: 'block', pl: 1, mb: 0.25 }}>
+                        • {q}
+                      </Typography>
+                    ))}
+
+                    <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mt: 1, mb: 0.5 }}>
+                      Pitfalls to avoid:
+                    </Typography>
+                    {coaching.advice.pitfalls.map((p, i) => (
+                      <Typography key={i} variant="caption" sx={{ display: 'block', pl: 1, mb: 0.25 }}>
+                        ⚠️ {p}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Write a narrative for this — prominent button for gap rows */}
+                {score.status === 'gap' && onStartEntry && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<EditNote />}
+                    onClick={() => onStartEntry(score.competencyId)}
+                    sx={{ mt: 1, textTransform: 'none', fontSize: '0.75rem' }}
+                  >
+                    Write a narrative for this
+                  </Button>
+                )}
+              </Box>
+            </Collapse>
+          </Card>
+        );
+      })}
+      {/* Footer: Also valued by reviewers */}
+      <Divider sx={{ mt: 2, mb: 1.5 }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+          Also valued by reviewers — weave these into your examples where relevant:
+        </Typography>
+        {BONUS_TAGS.map(tag => (
+          <Tooltip key={tag.id} title={tag.reviewerGuidance} arrow>
+            <Chip
+              label={tag.name}
+              size="small"
+              variant="outlined"
+              sx={{ fontSize: '0.72rem', cursor: 'default' }}
+            />
+          </Tooltip>
+        ))}
+      </Box>
     </Paper>
   );
 }

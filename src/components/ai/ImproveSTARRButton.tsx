@@ -5,7 +5,7 @@ import {
   FormControlLabel, Chip,
 } from '@mui/material';
 import { AutoAwesome, ContentCopy, Check, Send } from '@mui/icons-material';
-import { chat, checkConnection } from '../../utils/ai';
+import { chat, chatMessages, checkConnection } from '../../utils/ai';
 import { PROMPTS } from '../../utils/aiPrompts';
 import { useApp } from '../../store/AppContext';
 import { STAREntry } from '../../types';
@@ -19,7 +19,7 @@ function parseSTARResponse(text: string): Record<Field, string> | null {
   const sections: Partial<Record<Field, string>> = {};
 
   // Strategy 1: Headers on their own line
-  let parts = text.split(/^(Situation|Task|Action|Results)\s*$/m);
+  const parts = text.split(/^(Situation|Task|Action|Results)\s*$/m);
   if (parts.length >= 3) {
     for (let i = 1; i < parts.length; i += 2) {
       const key = parts[i]?.trim().toLowerCase() as Field;
@@ -92,14 +92,7 @@ export default function ImproveSTARRButton({ entry, onApply }: { entry: STAREntr
         { role: 'assistant' as const, content: 'I have the current entry. What changes would you like?' },
         { role: 'user' as const, content: msg },
       ];
-      const config = (await import('../../utils/ai')).getAIConfig();
-      const res = await fetch(`${config.endpoint}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: config.model, messages, stream: false }),
-      });
-      const data = await res.json();
-      const reply = data.message?.content || '';
+      const reply = await chatMessages(messages);
       setHistory([...newHistory, { role: 'assistant', content: reply }]);
       const p = parseSTARResponse(reply);
       if (p) {
@@ -112,7 +105,7 @@ export default function ImproveSTARRButton({ entry, onApply }: { entry: STAREntr
 
   const toggleField = (f: Field) => {
     const next = new Set(selected);
-    next.has(f) ? next.delete(f) : next.add(f);
+    if (next.has(f)) next.delete(f); else next.add(f);
     setSelected(next);
   };
 

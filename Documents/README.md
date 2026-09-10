@@ -1,125 +1,122 @@
 # PromoTrack — Promotion Portfolio Builder
 
-🚀 **Live App**: https://main.d6iifszd48m8n.amplifyapp.com
+🚀 **Live App**: https://promo-track.harmony.a2z.com  
+🧪 **Beta**: https://promo-track.beta.harmony.a2z.com
 
-A browser-based tool for Amazon employees to build, track, and export promotion portfolios. No login required, no server storage — all your data is encrypted and stays in your browser.
+A browser-based tool for Amazon employees to build, track, and export promotion portfolios. Authenticated via Midway — your identity is verified server-side and all data is encrypted in your browser, namespaced to your alias.
+
+**Last updated:** 2026-07-29
 
 ## What is PromoTrack?
 
 PromoTrack helps you organize your promotion materials in one place:
-- Build STARR stories with Leadership Principle mapping
-- Import metrics from GSD Scorecard PDFs
-- Collect and organize shout-outs
-- Track your readiness with a completion dashboard
+- Build STAR stories mapped to L4/L5 Role Guidelines
+- Import metrics from GSD Scorecard PDFs with resilient layout-aware parsing
+- View IC Promotion Guidelines synced live from the wiki
+- Track your promotion readiness with deterministic scoring
 - Export professional documents for submission
-- Collaborate with your manager through review workflows
+- Collaborate with your manager through authenticated review workflows
+- AI coaching that grounds every suggestion in your own words
 
 ## Getting Started
 
-1. **Open the app** at the URL above
-2. **Set a passphrase** (minimum 6 characters) — this encrypts all your data
+1. **Open the app** at the URL above (requires active Midway session)
+2. **Set a passphrase** (minimum 6 characters) — this encrypts all your data locally
 3. **Start with Profile** — fill in your employee information
-4. **Add content** — create STARR entries, import metrics, collect shout-outs
-5. **Check Dashboard** — see your readiness score and identify gaps
+4. **Add content** — create STAR entries, import metrics, collect shout-outs
+5. **Check Promotion Readiness** — see which Role Guidelines are well-covered
 
 ## Core Features
 
-### 📊 Dashboard
-- **Readiness Score**: 0-100% completion based on your portfolio
-- **LP Coverage Chart**: Visual map of Leadership Principles coverage
-- **Completion Checklist**: Track progress with customizable thresholds
+### 📊 Promotion Readiness
+- **7 L4 Role Guidelines** from the IC Promotion Wiki's GSD2 Review list (or L5 guidelines for L5 targets)
+- **Accordion Cards**: Per-guideline MUI icon, bold lead clause, full guideline text in muted secondary
+- **Deterministic scoring**: 0 entries = "No examples yet", 1+ = "Well covered"
+- **Segmented progress rail**: 7-part accessible progress bar (solid/dashed for non-color distinction)
+- **AI auto-suggest**: Fires silently after narrative save; accept/dismiss chips with quote validation
+- **Coach me**: "What could I write for this?" button per guideline
+- **Pre-tagged flow**: Empty guidelines offer "Write a narrative for this"
+- Footer: "Also valued by reviewers: Mentoring and coaching peers · Handling difficult customer interactions"
 
-### 📝 STARR Entries
-Create compelling promotion stories using the STARR format:
+### 📝 STAR Entries
+Create compelling promotion stories:
 - **S**ituation: Context and background
 - **T**ask: What needed to be done
 - **A**ction: What you did
 - **R**esults: Measurable outcomes
-- **R**eflection: What you learned
 
 **Key Features**:
-- Tag with Leadership Principles and impact levels
-- Use templates for common scenarios
-- **Customize fields**: Rename labels, reorder with arrows, add custom text/image fields, hide unused sections
-- **View mode** (👁️ icon): Read-only preview of your stories
-- **AI Enhancement**: Use "Format with AI" button for writing improvements
+- Tag entries with Role Guidelines
+- Simplified entry dialog (date auto-set)
+- AI is an advisor — never judges readiness, only highlights evidence gaps
+- Quote validation ensures AI never fabricates claims about your work
+
+### 📈 Metrics (MetricEvolution)
+Track your performance trends:
+- **Resilient PDF Import**: Layout-aware V2 parser with label-anchored per-KPI extraction, piecewise x-interpolation (recovers ~35% more data points), ISO-week dating
+- **Diagnostics**: Returns `{found, missing, warnings}` — renders summary instead of hard-failing
+- **Weekly view**: LineChart with axis labels like "W12 · Mar 17–Mar 23"
+- **Monthly view**: Ratio metrics show "Approximate — unweighted average of weekly values" with tooltip explaining volume-weighting difference; recommends dashboard for exact figures
+
+### 📖 Guidelines
+- Content synced from the IC Promotion Wiki (`npm run sync-wiki`)
+- DOMPurify-sanitized rendering with all links opening in new tabs
+- Sync-date header shows when content was last refreshed
+- "Open live wiki" button for the authoritative source
 
 ### 👥 Manager Review Workflow
-Collaborate seamlessly with your manager:
-
-1. **Export for Review**: Go to Documents → Export HTML
-2. **Send to Manager**: Email the HTML file to your manager
-3. **Manager Reviews**: They open in any browser, add comments per STARR entry, click 💾 Save File
-4. **Get Feedback**: Manager emails the saved file back to you
-5. **Import Comments**: Go to Documents → Import Review → select the HTML file
-6. **Respond**: Comments appear on STARR cards and in edit dialogs
-7. **Resolve**: Mark comments as resolved, add replies
-8. **Next Export**: Shows resolved status and your replies
-
-### 📈 Metrics
-Track your performance data:
-- **Auto-Import**: Upload GSD Scorecard PDFs to extract CPH, AHT, CSAT, ARR automatically
-- **Manual Entry**: Add metrics by hand when needed
-- **Benchmarks**: Compare against Global and Team performance
+1. **Share for Review**: Creates authenticated session via backend API
+2. **Manager Reviews**: Opens review URL, adds comments per entry (commenter alias captured server-side)
+3. **Import Comments**: Resilient matching by ID then title fallback; retry/stash on failures
+4. **Unmatched Handling**: After 5 attempts, unmatched comments stashed and surfaced via dialog
+5. **Respond**: Comments appear on STAR cards with reply capability
 
 ### 🎉 Shout-Outs
-Organize recognition and feedback:
-- **Email Import**: Upload .eml files to extract shout-outs automatically
+- **Email Import**: Upload .eml files to extract shout-outs
 - **Manual Entry**: Add recognition with badge types
 - **LP Mapping**: Connect shout-outs to Leadership Principles
 
 ### 📄 Documents & Export
-Multiple export options for different needs:
 - **Portfolio Backup** (.portfolio): Encrypted backup of all your data
 - **Promotion Document** (.docx): Professional template for submission
-- **Manager Review** (HTML): Shareable format for feedback collection
+- **Manager Review** (HTML): Shareable format for feedback
 - **JSON Backup**: Technical backup format
 
-### 📅 Timeline
-Track your portfolio development:
-- **Chronological View**: See all activity in order
-- **Filtering**: View All, STARR, Shout-Outs, or Activity separately
-- **Change Tracking**: Every edit, import, and comment is logged
-
 ### 🔒 Security & Privacy
-Your data is protected:
-- **AES-256-GCM Encryption**: Military-grade encryption for all data
-- **Passphrase Required**: Must enter passphrase every time you open the app
-- **Encrypted Exports**: .portfolio files are encrypted
-- **No Tracking**: No cookies, analytics, or data collection
-- **AI Security**: AI calls only go through approved AWS endpoints
+- **Midway JWT Authentication**: All API calls authenticated server-side (RS256, aws-jwt-verify)
+- **Per-User Isolation**: localStorage namespaced per verified alias — shared browsers are safe
+- **AES-256-GCM Encryption**: All data encrypted at rest
+- **Locked CORS**: Backend APIs accept only known origins
+- **DOMPurify**: All HTML content sanitized before rendering
+- **AI Guardrails**: Grounding rules prevent fabrication; client-side quote validation discards ungrounded suggestions
+- **No Tracking**: No cookies, analytics, or data collection beyond what Midway provides
 
-### 👤 Opening Someone Else's Portfolio
-First-time users can view shared portfolios:
-- Select "Open Portfolio File" option
-- Choose a .portfolio file
-- Enter the file's passphrase to view (read-only)
+## Development
 
-## Keyboard Shortcuts
+```bash
+npm install          # Install dependencies
+npm run dev          # Start dev server (localhost, no auth required)
+npm test             # Run 157 frontend tests
+npm run sync-wiki    # Sync wiki content (requires mwinit)
+```
 
-- **Enter/Space**: Open STARR cards for editing
-- **Tab**: Navigate through all interactive elements
-- **Enter**: Submit replies in comment fields
+### Deploy Frontend (Harmony)
+```bash
+npm run build-harmony-app    # vite build --outDir app && build-harmony
+harmony app deploy -s beta   # Deploy to beta
+harmony app deploy -s prod   # Deploy to prod
+```
 
-## Tips for Success
+### Deploy Backend (SAM)
+```bash
+cd backend/userdata && sam build && sam deploy
+cd backend/review && sam build && sam deploy
+```
 
-1. **Start Early**: Begin building your portfolio months before promotion cycles
-2. **Regular Updates**: Add new accomplishments as they happen
-3. **Quality over Quantity**: Focus on high-impact stories with clear results
-4. **LP Coverage**: Ensure you have examples for multiple Leadership Principles
-5. **Get Feedback**: Use the manager review workflow early and often
-6. **Backup Regularly**: Export .portfolio files to save your work
+## Tech Stack
 
-## Need Help?
-
-- **FAQ Page**: Check the in-app FAQ for detailed answers
-- **View Mode**: Use the eye icon to see how your stories look to others
-- **Templates**: Start with STARR templates if you're unsure how to begin
-
-## Technical Details
-
-Built with React 19, TypeScript, Material UI 7, Vite 8, and Vitest for a modern, responsive experience.
+Built with React 19, TypeScript 5.9, Material UI 7, Vite 8, Recharts, DOMPurify, Vitest, and aws-jwt-verify. Backend: AWS SAM (Lambda + API Gateway HttpApi + DynamoDB) with Midway JWT authorizers.
 
 ---
 
-**Ready to build your promotion portfolio?** [Open PromoTrack](https://main.d6iifszd48m8n.amplifyapp.com) and get started today!
+**Ready to build your promotion portfolio?** [Open PromoTrack](https://promo-track.harmony.a2z.com) and get started today!

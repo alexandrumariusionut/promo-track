@@ -98,7 +98,7 @@
 </div>
 
 <div class="toolbar">
-  <span class="status" id="status">Click any text to edit</span>
+  <span class="status" id="status">Click any text to edit · Last updated: 2026-07-29</span>
   <button onclick="addBullet()">+ Add Bullet</button>
   <button onclick="addTableRow()">+ Add Row</button>
   <button onclick="saveLocal()">💾 Save</button>
@@ -110,9 +110,10 @@
   <!-- WHAT -->
   <h3 class="section-title" id="what" contenteditable="true">What are we doing?</h3>
   <ul contenteditable="true">
-    <li>PromoTrack is a client-side web application that enables employees to build, manage, and export their promotion portfolio in a single unified tool. It replaces the manual process of assembling STARR entries, performance metrics, and narrative sections across disconnected documents and spreadsheets.</li>
-    <li>The app runs entirely in the browser with AES-256-GCM encrypted local storage — no backend infrastructure required — and includes optional AI-assisted writing via local Ollama or Amazon Bedrock.</li>
+    <li>PromoTrack is a client-side web application that enables employees to build, manage, and export their promotion portfolio in a single unified tool. It replaces the manual process of assembling STAR entries, performance metrics, and narrative sections across disconnected documents and spreadsheets.</li>
+    <li>The app runs in the browser with AES-256-GCM encrypted local storage namespaced per user, authenticated via Midway JWT, and includes AI-assisted coaching via Amazon Bedrock (Claude Haiku 4.5). The AI is an advisor only: it grounds every suggestion in the user's own words (verbatim-quote justification) and never judges promotion readiness.</li>
     <li>All portfolio data can be exported as encrypted portable files or formatted DOCX/PDF documents ready for submission.</li>
+    <li>Deployed on the Harmony platform at promo-track.harmony.a2z.com (prod) and promo-track.beta.harmony.a2z.com (beta). Backend APIs authenticated via Midway JWT (SAM stacks in eu-west-1).</li>
   </ul>
   <p class="label" contenteditable="true">Stakeholders / Customers:</p>
   <ul contenteditable="true">
@@ -126,7 +127,7 @@
   <h3 class="section-title" id="why" contenteditable="true">Why are we doing it?</h3>
   <ul contenteditable="true">
     <li><strong>Business justification:</strong> The current promotion process is fragmented — employees manually compile data from GSD scorecards and blank Word templates, leading to inconsistent quality and missed evidence. Employees spend significant time on formatting rather than content quality.</li>
-    <li><strong>Impact in current state:</strong> No single tool tracks promotion readiness or identifies gaps in Leadership Principle coverage. Managers lack visibility into portfolio completeness before submission deadlines.</li>
+    <li><strong>Impact in current state:</strong> No single tool tracks promotion readiness or identifies gaps in Role Guideline coverage. Managers lack visibility into portfolio completeness before submission deadlines.</li>
     <li><strong>Related goals:</strong> Reduce portfolio preparation time from days to hours. Improve the quality and completeness of promotion submissions across the organization.</li>
   </ul>
 
@@ -136,32 +137,41 @@
   <p class="label" contenteditable="true">Components:</p>
   <ul contenteditable="true">
     <li>Lock Screen — passphrase-based access control with encrypted storage</li>
-    <li>Dashboard — readiness score (0–100), LP coverage chart, gap checklist</li>
-    <li>STARR Editor — create/edit entries with LP tagging and AI-assisted rewriting</li>
-    <li>Metrics Importer — parse GSD scorecard PDFs and CSV files</li>
+    <li>Promotion Readiness — 7 L4 Role Guideline accordion cards, per-guideline icons, segmented progress rail, deterministic scoring, AI auto-suggest with accept/dismiss chips</li>
+    <li>STAR Editor — create/edit entries with Role Guideline tagging; simplified dialog (date auto-set)</li>
+    <li>Guidelines Page — IC Promotion Wiki content synced via npm run sync-wiki, DOMPurify-sanitized</li>
+    <li>Metrics (MetricEvolution) — weekly + monthly LineCharts; layout-resilient V2 PDF parser with diagnostics</li>
     <li>Documents Hub — export encrypted .portfolio files, DOCX, PDF, HTML</li>
     <li>Profile — employee info, promotion targets, narrative sections</li>
     <li>Timeline — chronological view of all portfolio activity</li>
-    <li>AI Assistant — gap analysis, scope drafting, STARR improvement</li>
+    <li>AI Coach — grounded suggestions (PROMO_COACH_SYSTEM), quote validation, gap analysis</li>
+    <li>Manager Review — authenticated share-for-review with retry/stash comment import</li>
   </ul>
 
   <p class="label" contenteditable="true">Technologies:</p>
   <ul contenteditable="true">
-    <li>React 19, TypeScript, Vite 8, MUI 7, Recharts</li>
+    <li>React 19, TypeScript 5.9, Vite 8, MUI 7, Recharts</li>
     <li>Web Crypto API (AES-256-GCM, PBKDF2) for encryption</li>
     <li>docx / jsPDF for document generation, DOMPurify for XSS prevention</li>
-    <li>Ollama (local AI) / Amazon Bedrock (cloud AI) — optional</li>
+    <li>Amazon Bedrock (Claude Haiku 4.5) via Lambda + API Gateway</li>
+    <li>aws-jwt-verify (backend Midway JWT authentication)</li>
+    <li>@amzn/harmony-build-tools for deployment</li>
+    <li>Ollama (local AI fallback) — optional</li>
   </ul>
 
   <p class="label" contenteditable="true">Data stores:</p>
   <ul contenteditable="true">
-    <li>Browser localStorage (AES-256-GCM encrypted) — sole data store, no backend database</li>
+    <li>Browser localStorage (AES-256-GCM encrypted, per-alias namespaced) — primary client data</li>
+    <li>DynamoDB: promo-track-users (cloud persistence), promo-track-reviews (sessions with TTL)</li>
   </ul>
 
   <p class="label" contenteditable="true">External tech dependencies:</p>
   <ul contenteditable="true">
-    <li>AWS Amplify Hosting (static SPA deployment with security headers)</li>
-    <li>Ollama / Amazon Bedrock (optional, for AI features)</li>
+    <li>Harmony Platform (primary static SPA deployment)</li>
+    <li>AWS Lambda + API Gateway (authenticated backend APIs + AI proxy)</li>
+    <li>Midway (JWT authentication via JWKS)</li>
+    <li>IC Promotion Wiki (guidelines sync source via mcurl + Midway)</li>
+    <li>Ollama / Amazon Bedrock (AI features)</li>
   </ul>
 
   <p class="label" contenteditable="true">Personnel:</p>
@@ -178,8 +188,8 @@
 
   <p class="label" contenteditable="true">Open questions:</p>
   <ul contenteditable="true">
-    <li>Should we add Amazon Cognito authentication for multi-user / cross-device support in a future phase?</li>
-    <li>Is DynamoDB-backed persistence needed, or is client-only storage sufficient for the target audience?</li>
+    <li><s>Should we add authentication for multi-user / cross-device support?</s> <strong>DONE</strong> — Midway JWT landed 2026-07-29</li>
+    <li>Is DynamoDB-backed full-state persistence needed, or is client-only + userdata API sufficient?</li>
     <li>Should the DOCX export format be standardized across the organization?</li>
     <li>What is the appetite for a manager-facing read-only view of employee portfolios?</li>
   </ul>
@@ -190,25 +200,36 @@
   <p class="label" contenteditable="true">Milestones / target completion date:</p>
   <table id="milestones">
     <tr><th>Milestone</th><th>Target Date</th><th>Status</th></tr>
-    <tr><td contenteditable="true">Core app (dashboard, STARR, profile, export)</td><td contenteditable="true">2026-02-13</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Core app (dashboard, STAR, profile, export)</td><td contenteditable="true">2026-02-13</td><td contenteditable="true">✅ Complete</td></tr>
     <tr><td contenteditable="true">Metrics import (GSD scorecard PDF parsing)</td><td contenteditable="true">2026-02-13</td><td contenteditable="true">✅ Complete</td></tr>
-    <tr><td contenteditable="true">AI integration (Ollama, gap analysis, STARR rewrite)</td><td contenteditable="true">2026-02-19</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">AI integration (Ollama, gap analysis, STAR rewrite)</td><td contenteditable="true">2026-02-19</td><td contenteditable="true">✅ Complete</td></tr>
     <tr><td contenteditable="true">Security hardening (encryption, lock screen, CSP)</td><td contenteditable="true">2026-02-19</td><td contenteditable="true">✅ Complete</td></tr>
-    <tr><td contenteditable="true">Amplify deployment</td><td contenteditable="true">TBD</td><td contenteditable="true">🔲 Planned</td></tr>
+    <tr><td contenteditable="true">Amplify deployment</td><td contenteditable="true">2026-02-20</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Bedrock AI integration (Lambda + API Gateway)</td><td contenteditable="true">2026-02-20</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Harmony deployment (primary)</td><td contenteditable="true">2026-07-21</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Wiki sync + Guidelines page</td><td contenteditable="true">2026-07-21</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Promotion Readiness rebuild (L4 Role Guidelines)</td><td contenteditable="true">2026-07-21</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">MetricEvolution (weekly/monthly LineCharts)</td><td contenteditable="true">2026-07-21</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Metrics PDF resilient parser (V2 — label-anchored, piecewise interpolation)</td><td contenteditable="true">2026-07-24</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Honest monthly display (unweighted average labeling + tooltip)</td><td contenteditable="true">2026-07-24</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Readiness panel redesign (accordion cards, icons, progress rail, Coach me)</td><td contenteditable="true">2026-07-24</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Share-for-review robustness (retry/stash, ID-primary matching)</td><td contenteditable="true">2026-07-22</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Cache hardening (3-tier headers: no-cache / immutable / 1hr)</td><td contenteditable="true">2026-07-22</td><td contenteditable="true">✅ Complete</td></tr>
+    <tr><td contenteditable="true">Midway JWT auth + per-user isolation (both APIs, CORS lock, server-side alias)</td><td contenteditable="true">2026-07-29</td><td contenteditable="true">✅ Complete</td></tr>
     <tr><td contenteditable="true">User feedback &amp; iteration</td><td contenteditable="true">Ongoing</td><td contenteditable="true">🔲 Planned</td></tr>
   </table>
 
   <p class="label" contenteditable="true">Expected impact:</p>
   <ul contenteditable="true">
     <li>Reduce portfolio preparation time from days to hours</li>
-    <li>Increase LP coverage completeness in submitted portfolios</li>
+    <li>Increase Role Guideline coverage completeness in submitted portfolios</li>
     <li>Provide real-time readiness visibility to employees and managers</li>
   </ul>
 
   <p class="label" contenteditable="true">KPI / critical metrics:</p>
   <ul contenteditable="true">
     <li>Portfolio readiness score at submission (target: &gt;80%)</li>
-    <li>Number of LPs covered per portfolio (target: ≥8 of 16)</li>
+    <li>Number of Role Guidelines covered per portfolio (target: all 7)</li>
     <li>Time from first entry to export-ready document</li>
     <li>User adoption rate within target teams</li>
   </ul>
@@ -217,10 +238,12 @@
   <h3 class="section-title" id="review" contenteditable="true">Summary of design review</h3>
   <div class="review-box">
     <ul contenteditable="true">
-      <li><strong>Architecture:</strong> Client-side SPA with encrypted localStorage — no backend required, zero infrastructure cost</li>
-      <li><strong>Security:</strong> AES-256-GCM encryption at rest and for exported files, passphrase lock screen on every load, AI endpoint allowlist, CSP headers, DOMPurify sanitization, file import validation — overall risk rating: LOW</li>
-      <li><strong>Trade-off accepted:</strong> Client-only storage limits cross-device sync but eliminates backend complexity, cost, and data privacy concerns</li>
-      <li><strong>AI:</strong> Optional and defaults to local-only (Ollama) to keep sensitive data off external servers</li>
+      <li><strong>Architecture:</strong> Client-side SPA with encrypted localStorage + authenticated serverless backend (SAM) — zero idle infrastructure cost</li>
+      <li><strong>Security:</strong> Midway JWT auth on all APIs (RS256, alias binding), AES-256-GCM encryption at rest, passphrase lock screen, locked CORS, DOMPurify sanitization, AI grounding rules, per-user data isolation — overall risk: <strong>LOW</strong></li>
+      <li><strong>Trade-off accepted:</strong> Client-primary storage limits cross-device sync but eliminates complexity and data privacy concerns; userdata API provides optional cloud backup</li>
+      <li><strong>AI:</strong> Amazon Bedrock (Claude Haiku 4.5) — advisor only, grounded suggestions, quote validation, no outcome predictions. Data stays within AWS (~$0.001/request)</li>
+      <li><strong>Deployment:</strong> Harmony platform (primary) + SAM backend (Lambda/API Gateway/DynamoDB) + Amplify (legacy) — fully serverless, pay-per-use</li>
+      <li><strong>Tests:</strong> 181 tests (157 frontend + 24 backend) across storage, scoring, PDF parsing, auth, review import (Vitest + Node.js test runner)</li>
     </ul>
   </div>
 

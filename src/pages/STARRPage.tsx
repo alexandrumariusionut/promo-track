@@ -1,16 +1,22 @@
 import { useState } from 'react';
-import { Box, Typography, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, CircularProgress, Snackbar, Alert, Divider } from '@mui/material';
+import { Box, Typography, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Chip, CircularProgress, Snackbar, Alert, Divider } from '@mui/material';
 import { Add, Share, ContentCopy, RateReview } from '@mui/icons-material';
 import DimensionCoveragePanel from '../components/starr/DimensionCoveragePanel';
 import PageTip from '../components/PageTip';
 import { v4 as uuid } from 'uuid';
 import { useApp } from '../store/AppContext';
+import { getPendingReviewKey } from '../store/storage';
 import { STAREntry, LEADERSHIP_PRINCIPLES, LeadershipPrinciple, ReviewComment } from '../types';
 import { showUndo } from '../components/UndoSnackbar';
 import STARRCard from '../components/starr/STARRCard';
 import STARRFormDialog from '../components/starr/STARRFormDialog';
 import TemplatePickerDialog from '../components/starr/TemplatePickerDialog';
-import { createReviewSession, checkReviewStatus } from '../utils/reviewApi';
+import { createReviewSession } from '../utils/reviewApi';
+import { consumeReview, getUnmatchedComments, clearUnmatchedComments } from '../utils/reviewImport';
+import { suggestDimensions, DimensionSuggestion } from '../utils/aiPrompts';
+import { chat } from '../utils/ai';
+import { GUIDELINES } from '../data/levelGuidelines';
+import { validateSuggestions } from '../utils/dimensionScoring';
 
 export default function STARRPage() {
   const { state, dispatch } = useApp();
@@ -23,6 +29,9 @@ export default function STARRPage() {
 
   // Engineer note input
   const [noteText, setNoteText] = useState('');
+  // Pre-tag new entries from the panel
+  const [preTaggedResponsibility, setPreTaggedResponsibility] = useState<string | undefined>(undefined);
+  const [dialogHelperText, setDialogHelperText] = useState<string | undefined>(undefined);
 
   // Share for Review state
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
@@ -33,36 +42,38 @@ export default function STARRPage() {
   const [snack, setSnack] = useState<string | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
 
-  const hasPendingReview = !!localStorage.getItem('promo-track-pending-review');
+  const [unmatchedDialogOpen, setUnmatchedDialogOpen] = useState(false);
+  const [unmatchedComments, setUnmatchedComments] = useState(getUnmatchedComments());
+
+  const hasPendingReview = !!localStorage.getItem(getPendingReviewKey());
+  const hasUnmatchedComments = unmatchedComments.length > 0;
 
   const handleCheckForReview = async () => {
-    const sid = localStorage.getItem('promo-track-pending-review');
-    if (!sid) return;
     setCheckLoading(true);
     try {
-      const result = await checkReviewStatus(sid);
-      if (result.status === 'reviewed') {
-        const comments: Record<string, { text: string; date?: string }> = result.comments || {};
-        state.star.forEach(entry => {
-          const c = comments[entry.id];
-          if (c?.text) {
-            const newComment: ReviewComment = {
-              id: `review-${sid}-${entry.id}`, text: c.text,
-              date: c.date || new Date().toISOString(), source: 'manager',
-            };
-            const existing = entry.reviewComments || [];
-            if (!existing.some(ec => ec.id === newComment.id)) {
-              dispatch({ type: 'UPDATE_STAR', payload: { ...entry, reviewComments: [...existing, newComment] } });
+      const outcome = await consumeReview(state.star);
+      if (outcome.action === 'not-ready') {
+        setSnack('Local entries not loaded yet — will retry automatically.');
+      } else if (outcome.action === 'pending') {
+        setSnack("No review yet. Your manager hasn't responded.");
+      } else if (outcome.action === 'error' && !outcome.message) {
+        setSnack('Temporary error checking review — will retry.');
+      } else {
+        // Apply matched comments
+        if (outcome.importResult?.matched.length) {
+          for (const { entryId, comment } of outcome.importResult.matched) {
+            const entry = state.star.find(e => e.id === entryId);
+            if (entry) {
+              dispatch({ type: 'UPDATE_STAR', payload: { ...entry, reviewComments: [...(entry.reviewComments || []), comment] } });
             }
           }
-        });
-        localStorage.removeItem('promo-track-pending-review');
-        setSnack('Manager review received!');
-      } else {
-        setSnack("No review yet. Your manager hasn't responded.");
+        }
+        if (outcome.message) {
+          setSnack(outcome.message);
+        }
+        // Refresh unmatched comments state
+        setUnmatchedComments(getUnmatchedComments());
       }
-    } catch (e) {
-      setSnack(e instanceof Error ? e.message : 'Failed to check review status');
     } finally {
       setCheckLoading(false);
     }
@@ -87,7 +98,7 @@ export default function STARRPage() {
       });
       setShareLink(reviewUrl);
       const sid = reviewUrl.split('/review/')[1];
-      if (sid) localStorage.setItem('promo-track-pending-review', sid);
+      if (sid) localStorage.setItem(getPendingReviewKey(), sid);
 
       // Build Outlook compose URL for the dialog button
       const managerEmail = state.profile.manager?.includes('@') ? state.profile.manager : '';
@@ -111,12 +122,59 @@ ${state.profile.name}`;
     }
   };
 
-  const openNew = () => { setEditing(null); setOpen(true); };
-  const openEdit = (entry: STAREntry) => { setEditing(entry); setOpen(true); };
+  const openNew = () => { setEditing(null); setPreTaggedResponsibility(undefined); setDialogHelperText(undefined); setOpen(true); };
+  const openNewForResponsibility = (responsibilityId?: string) => {
+    setEditing(null);
+    setPreTaggedResponsibility(responsibilityId);
+    // Build helper text from guideline rubric
+    if (responsibilityId) {
+      const targetLevel = state.profile.targetLevel;
+      const guidelines = GUIDELINES[targetLevel as 'L4' | 'L5'] || [];
+      const guideline = guidelines.find(g => g.id === responsibilityId);
+      if (guideline) {
+        setDialogHelperText(`Reviewer guidance: ${guideline.rubric}`);
+      }
+    } else {
+      setDialogHelperText(undefined);
+    }
+    setOpen(true);
+  };
+  const openEdit = (entry: STAREntry) => { setEditing(entry); setPreTaggedResponsibility(undefined); setDialogHelperText(undefined); setOpen(true); };
 
   const handleSubmit = (entry: STAREntry) => {
     dispatch({ type: editing ? 'UPDATE_STAR' : 'ADD_STAR', payload: entry });
     setOpen(false);
+
+    // Auto-suggest dimensions in the background (non-blocking)
+    const targetLevel = state.profile.targetLevel;
+    const guidelines = GUIDELINES[targetLevel as 'L4' | 'L5'];
+    if (guidelines) {
+      (async () => {
+        try {
+          const prompt = suggestDimensions(entry, guidelines);
+          const raw = await chat(prompt.system, prompt.user);
+          const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const parsed = JSON.parse(cleaned);
+          const suggestions: DimensionSuggestion[] = parsed.suggestions || [];
+
+          // Exclude already-confirmed dimensions
+          const confirmed = new Set(entry.dimensions || []);
+          const novel = suggestions
+            .filter(s => !confirmed.has(s.id))
+            .map(s => ({ id: s.id, justification: s.justification }));
+
+          // Validate against entry text
+          const validated = validateSuggestions(novel, entry);
+
+          if (validated.length > 0) {
+            dispatch({ type: 'SET_ENTRY_AI_SUGGESTIONS', payload: { entryId: entry.id, suggestions: validated } });
+            setSnack(`AI found ${validated.length} possible guideline match${validated.length > 1 ? 'es' : ''} — review them in Promotion Readiness`);
+          }
+        } catch (e) {
+          console.warn('[auto-suggest] AI dimension suggestion failed:', e instanceof Error ? e.message : e);
+        }
+      })();
+    }
   };
 
   const handleDuplicate = (entry: STAREntry) => {
@@ -152,6 +210,11 @@ ${state.profile.name}`;
               {checkLoading ? 'Checking…' : 'Check for Review'}
             </Button>
           )}
+          {hasUnmatchedComments && (
+            <Button variant="outlined" color="warning" onClick={() => setUnmatchedDialogOpen(true)}>
+              View unmatched manager feedback
+            </Button>
+          )}
           {state.star.length > 0 && (
             <Button variant="outlined" startIcon={<Share />} onClick={handleShareForReview}>Share for Review</Button>
           )}
@@ -164,7 +227,7 @@ ${state.profile.name}`;
         STAR stands for Situation, Task, Action, and Results. Each entry documents a specific example of how you demonstrated Amazon Leadership Principles. You can customize the form — hide fields you don't need, add custom text fields or images. Use "Format with AI" to polish your entries.
       </PageTip>
 
-      <DimensionCoveragePanel onStartEntry={openNew} />
+      <DimensionCoveragePanel onStartEntry={openNewForResponsibility} />
 
       {/* Filters */}
       <Box role="search" aria-label="Filter STAR entries" sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
@@ -194,7 +257,7 @@ ${state.profile.name}`;
       )}
 
       <TemplatePickerDialog open={templateOpen} onClose={() => setTemplateOpen(false)} onSelect={handleTemplateSelect} />
-      <STARRFormDialog open={open} editing={editing} onClose={() => setOpen(false)} onSubmit={handleSubmit} />
+      <STARRFormDialog open={open} editing={editing} onClose={() => setOpen(false)} onSubmit={handleSubmit} preTaggedResponsibility={preTaggedResponsibility} helperText={dialogHelperText} />
 
       {/* View Dialog */}
       <Dialog open={!!viewing} onClose={() => setViewing(null)} maxWidth="md" fullWidth>
@@ -306,7 +369,29 @@ ${state.profile.name}`;
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={!!snack} autoHideDuration={3000} onClose={() => setSnack(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+      {/* Unmatched Manager Feedback Dialog */}
+      <Dialog open={unmatchedDialogOpen} onClose={() => setUnmatchedDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Unmatched Manager Feedback</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            These comments could not be matched to your current entries (entries may have been recreated with new IDs).
+          </Typography>
+          {unmatchedComments.map((item, i) => (
+            <Box key={i} sx={{ mb: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="subtitle2">{item.title}</Typography>
+              <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>{item.text}</Typography>
+            </Box>
+          ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { clearUnmatchedComments(); setUnmatchedComments([]); setUnmatchedDialogOpen(false); }}>
+            Dismiss
+          </Button>
+          <Button onClick={() => setUnmatchedDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar open={!!snack} autoHideDuration={6000} onClose={() => setSnack(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity="success" onClose={() => setSnack(null)} variant="filled">{snack}</Alert>
       </Snackbar>
     </Box>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Typography, TextField, Button, Paper, MenuItem, Grid, Divider, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { DeleteSweep, AutoFixHigh } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
@@ -36,7 +36,11 @@ const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
 export default function ProfilePage() {
   const { state, dispatch } = useApp();
-  const { control, handleSubmit } = useForm<UserProfile>({ defaultValues: state.profile });
+  const { control, handleSubmit, reset } = useForm<UserProfile>({ defaultValues: state.profile });
+
+  // Keep the form in step with the store when the profile changes outside this form
+  // (cloud reload after a sync conflict, portfolio import, reset).
+  useEffect(() => { reset(state.profile); }, [state.profile, reset]);
   const [confirmReset, setConfirmReset] = useState(false);
 
   const onSubmit = (data: UserProfile) => {

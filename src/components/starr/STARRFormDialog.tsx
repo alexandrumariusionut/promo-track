@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -18,6 +18,8 @@ import {
   Menu,
   Button,
   Typography,
+  Autocomplete,
+  CircularProgress,
 } from '@mui/material';
 import {
   Delete,
@@ -28,20 +30,26 @@ import {
   ArrowUpward,
   ArrowDownward,
   AddCircleOutline,
+  AutoAwesome,
+  Check,
+  Close,
 } from '@mui/icons-material';
 import { v4 as uuid } from 'uuid';
 import WordCount from '../WordCount';
 import ImproveSTARRButton from '../ai/ImproveSTARRButton';
-import { STAREntry, CustomField, LEADERSHIP_PRINCIPLES, LeadershipPrinciple, ReviewComment } from '../../types';
+import { STAREntry, CustomField, LEADERSHIP_PRINCIPLES, LeadershipPrinciple, AISuggestedDimension } from '../../types';
+import { GUIDELINES, Guideline } from '../../data/levelGuidelines';
 import { getQuarter } from '../../utils/helpers';
 import { showError } from '../ErrorSnackbar';
 import { useApp } from '../../store/AppContext';
+import { suggestDimensions, DimensionSuggestion } from '../../utils/aiPrompts';
+import { chat } from '../../utils/ai';
+import { validateSuggestions } from '../../utils/dimensionScoring';
 
 
 const sanitize = (text: string) => text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
-const IMPACT_LEVELS = ['Low', 'Medium', 'High', 'Critical'];
 const DEFAULT_STAR_FIELDS = ['situation', 'task', 'action', 'result'];
 const FIELD_ROWS = { situation: 3, task: 3, action: 4, result: 3 };
 const FIELD_PLACEHOLDERS: Record<string, string> = {
@@ -66,6 +74,9 @@ interface FormState {
   fieldOrder: string[];
   fieldLabels: Record<string, string>;
   levelDimension: string;
+  dimensions: string[];
+  themes: string[];
+  aiSuggestedDimensions: AISuggestedDimension[];
 }
 
 interface UnifiedField {
@@ -92,6 +103,9 @@ const emptyForm = (): FormState => ({
   fieldOrder: [...DEFAULT_STAR_FIELDS],
   fieldLabels: {},
   levelDimension: '',
+  dimensions: [],
+  themes: [],
+  aiSuggestedDimensions: [],
 });
 
 const fromEntry = (entry: STAREntry): FormState => ({
@@ -109,6 +123,9 @@ const fromEntry = (entry: STAREntry): FormState => ({
   fieldOrder: [...DEFAULT_STAR_FIELDS, ...(entry.customFields || []).map(cf => cf.id)],
   fieldLabels: {},
   levelDimension: entry.levelDimension || '',
+  dimensions: entry.dimensions || [],
+  themes: entry.themes || [],
+  aiSuggestedDimensions: entry.aiSuggestedDimensions || [],
 });
 
 interface STARRFormDialogProps {
@@ -116,23 +133,41 @@ interface STARRFormDialogProps {
   editing: STAREntry | null;
   onClose: () => void;
   onSubmit: (entry: STAREntry) => void;
+  /** Pre-tag the entry with this responsibility id when opening for a new entry */
+  preTaggedResponsibility?: string;
+  /** Helper text to show in the dialog (e.g. what reviewers look for) */
+  helperText?: string;
 }
 
-export default function STARRFormDialog({ open, editing, onClose, onSubmit }: STARRFormDialogProps) {
+export default function STARRFormDialog({ open, editing, onClose, onSubmit, preTaggedResponsibility, helperText }: STARRFormDialogProps) {
   const { state: appState } = useApp();
   const [form, setForm] = useState<FormState>(emptyForm());
   const [addMenuAnchor, setAddMenuAnchor] = useState<HTMLElement | null>(null);
   const [titleError, setTitleError] = useState(false);
-  const imgRef = useRef<HTMLInputElement>(null);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [pendingSuggestions, setPendingSuggestions] = useState<DimensionSuggestion[]>([]);
 
   const targetLevel = appState.profile.targetLevel;
+  const guidelines = useMemo(
+    () => GUIDELINES[targetLevel as 'L4' | 'L5'] || [],
+    [targetLevel],
+  );
 
   useEffect(() => {
-    setForm(editing ? fromEntry(editing) : emptyForm());
+    if (editing) {
+      setForm(fromEntry(editing));
+    } else {
+      const fresh = emptyForm();
+      // Pre-tag with guideline if provided
+      if (preTaggedResponsibility && guidelines.some(g => g.id === preTaggedResponsibility)) {
+        fresh.dimensions = [preTaggedResponsibility];
+      }
+      setForm(fresh);
+    }
     setTitleError(false);
-  }, [editing]);
+  }, [editing, preTaggedResponsibility, guidelines]);
 
-  const setField = (field: keyof FormState, value: any) => {
+  const setField = (field: keyof FormState, value: FormState[keyof FormState]) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
@@ -169,20 +204,6 @@ export default function STARRFormDialog({ open, editing, onClose, onSubmit }: ST
       ...prev,
       customFields: prev.customFields.filter(f => f.id !== id)
     }));
-  };
-
-  const moveCustomField = (id: string, direction: 'up' | 'down') => {
-    setForm(prev => {
-      const fields = [...prev.customFields];
-      const idx = fields.findIndex(f => f.id === id);
-      if (idx === -1) return prev;
-      
-      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (newIdx < 0 || newIdx >= fields.length) return prev;
-      
-      [fields[idx], fields[newIdx]] = [fields[newIdx], fields[idx]];
-      return { ...prev, customFields: fields };
-    });
   };
 
   const handleImageUpload = (fieldId: string, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,6 +250,9 @@ export default function STARRFormDialog({ open, editing, onClose, onSubmit }: ST
     customFields: form.customFields,
     evidenceLinks: form.evidenceLinks.split('\n').filter(link => link.trim()),
     levelDimension: form.levelDimension || undefined,
+    dimensions: form.dimensions.length > 0 ? form.dimensions : undefined,
+    themes: form.themes.length > 0 ? form.themes : undefined,
+    aiSuggestedDimensions: form.aiSuggestedDimensions.length > 0 ? form.aiSuggestedDimensions : undefined,
   });
 
   const allFields: UnifiedField[] = (() => {
@@ -310,12 +334,6 @@ export default function STARRFormDialog({ open, editing, onClose, onSubmit }: ST
       <DialogTitle>{editing ? 'Edit' : 'New'} STAR Narrative</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important', overflowY: 'auto' }}>
         <TextField label="Title" value={form.title} onChange={e => { setField('title', e.target.value); setTitleError(false); }} fullWidth error={titleError} helperText={titleError ? 'Title is required' : ''} />
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <TextField label="Date" type="date" value={form.date} onChange={e => setField('date', e.target.value)} InputLabelProps={{ shrink: true }} sx={{ flex: 1 }} />
-          <TextField label="Impact Level" select value={form.impactLevel} onChange={e => setField('impactLevel', e.target.value)} sx={{ flex: 1 }}>
-            {IMPACT_LEVELS.map(l => <MenuItem key={l} value={l}>{l}</MenuItem>)}
-          </TextField>
-        </Box>
         <FormControl fullWidth>
           <InputLabel>Leadership Principles</InputLabel>
           <Select<string[]> multiple value={form.principles} onChange={e => setField('principles', e.target.value)} input={<OutlinedInput label="Leadership Principles" />}
@@ -323,6 +341,138 @@ export default function STARRFormDialog({ open, editing, onClose, onSubmit }: ST
             {LEADERSHIP_PRINCIPLES.map((lp: LeadershipPrinciple) => <MenuItem key={lp} value={lp}>{lp}</MenuItem>)}
           </Select>
         </FormControl>
+        {/* Dimensions demonstrated */}
+        {guidelines.length > 0 && (
+          <Box>
+            {/* Helper text from panel (what reviewers look for) */}
+            {helperText && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontStyle: 'italic', bgcolor: 'action.hover', p: 1, borderRadius: 1 }}>
+                💡 {helperText}
+              </Typography>
+            )}
+            <Autocomplete
+              multiple
+              options={guidelines}
+              getOptionLabel={(option: Guideline) => option.name}
+              value={guidelines.filter(g => form.dimensions.includes(g.id))}
+              onChange={(_e, newValue) => setField('dimensions', newValue.map(g => g.id))}
+              filterOptions={(options, { inputValue }) => {
+                const lower = inputValue.toLowerCase();
+                return options.filter(o => o.name.toLowerCase().includes(lower));
+              }}
+              renderOption={(props, option: Guideline) => (
+                <li {...props} key={option.id}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                    <Typography variant="body2" sx={{ whiteSpace: 'normal', lineHeight: 1.4 }}>{option.name}</Typography>
+                  </Box>
+                </li>
+              )}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => {
+                  const { key, ...tagProps } = getTagProps({ index });
+                  // Short label = first sentence (up to first period)
+                  const shortLabel = option.name.includes('.')
+                    ? option.name.slice(0, option.name.indexOf('.') + 1)
+                    : option.name;
+                  return (
+                    <Tooltip key={key} title={option.name} arrow>
+                      <Chip label={shortLabel} size="small" {...tagProps} />
+                    </Tooltip>
+                  );
+                })
+              }
+              renderInput={(params) => (
+                <TextField {...params} label="Role guidelines demonstrated" placeholder="Select guidelines..." />
+              )}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+              <Button
+                size="small"
+                variant="text"
+                startIcon={aiSuggesting ? <CircularProgress size={14} /> : <AutoAwesome />}
+                onClick={async () => {
+                  setAiSuggesting(true);
+                  setPendingSuggestions([]);
+                  try {
+                    const entry = buildEntryFromForm();
+                    const prompt = suggestDimensions(entry, guidelines);
+                    const raw = await chat(prompt.system, prompt.user);
+                    const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                    const parsed = JSON.parse(cleaned);
+                    const suggestions: DimensionSuggestion[] = parsed.suggestions || [];
+                    // Filter out already-tagged dimensions
+                    const newSuggestions = suggestions.filter(s => !form.dimensions.includes(s.id));
+                    // Validate quotes against entry text
+                    const validated = validateSuggestions(
+                      newSuggestions.map(s => ({ id: s.id, justification: s.justification })),
+                      entry,
+                    );
+                    setPendingSuggestions(validated.map(v => {
+                      const orig = newSuggestions.find(s => s.id === v.id);
+                      return orig || { id: v.id, justification: v.justification, confidence: 'medium' as const };
+                    }));
+                  } catch (e) {
+                    showError(e instanceof Error ? e.message : 'AI suggestion failed');
+                  } finally {
+                    setAiSuggesting(false);
+                  }
+                }}
+                disabled={aiSuggesting || (!form.situation && !form.action && !form.result)}
+                sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+              >
+                Suggest with AI
+              </Button>
+            </Box>
+            {/* Pending AI suggestions */}
+            {pendingSuggestions.length > 0 && (
+              <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                  AI suggestions (accept or reject):
+                </Typography>
+                {pendingSuggestions.map(suggestion => {
+                  const guideline = guidelines.find(g => g.id === suggestion.id);
+                  if (!guideline) return null;
+                  return (
+                    <Box key={suggestion.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.75 }}>
+                      <Tooltip title="Accept">
+                        <IconButton
+                          size="small"
+                          color="success"
+                          onClick={() => {
+                            setField('dimensions', [...form.dimensions, suggestion.id]);
+                            setPendingSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
+                          }}
+                          aria-label={`Accept ${guideline.name}`}
+                        >
+                          <Check sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Reject">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => {
+                            setPendingSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
+                          }}
+                          aria-label={`Reject ${guideline.name}`}
+                        >
+                          <Close sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Box>
+                        <Chip label={guideline.name} size="small" variant="outlined" sx={{ mb: 0.25 }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          {suggestion.justification}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </Box>
+        )}
         {/* All fields — standard STAR + custom — unified rendering */}
         {allFields.map((field, idx) => (
           <Box key={field.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>

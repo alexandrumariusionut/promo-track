@@ -1,19 +1,14 @@
 import { useEffect } from 'react';
 import { Snackbar, Alert } from '@mui/material';
 import confetti from 'canvas-confetti';
-import { useOnboarding } from '../../context/OnboardingContext';
-
-const MESSAGES: Record<number, string> = {
-  1: '📖 Guidelines complete! Profile & FAQ unlocked!',
-  2: '✅ Profile complete! STAR Entries unlocked!',
-  3: '⭐ All tabs unlocked! You\'re all set! 🏆',
-};
+import { useOnboarding, CELEBRATION_MESSAGES as MESSAGES } from '../../context/OnboardingContext';
+import { prefersReducedMotion } from '../../utils/motion';
 
 export default function CelebrationOverlay() {
   const { pendingCelebration, dismissCelebration } = useOnboarding();
 
   useEffect(() => {
-    if (pendingCelebration === null) return;
+    if (pendingCelebration === null || prefersReducedMotion()) return;
 
     const isFinal = pendingCelebration === 3;
     confetti({

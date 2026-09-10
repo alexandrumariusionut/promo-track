@@ -1,6 +1,6 @@
-# PromoTrack — AWS Deployment Document
+# PromoTrack — Deployment Document
 
-**Date:** 2026-02-20  
+**Last updated:** 2026-07-29  
 **Region:** eu-west-1 (Ireland)  
 **Account:** 029465354181  
 **Deployed by:** marindru-Isengard
@@ -10,150 +10,227 @@
 ## Architecture Overview
 
 ```
-┌──────────────────────────────────┐
-│         End Users (Browser)      │
-└──────────┬───────────────────────┘
+┌──────────────────────────────────────────┐
+│          End Users (Browser)             │
+│  Midway cookie → midwayAuth.ts → token   │
+└──────────┬───────────────────────────────┘
+           │ Bearer <JWT>
+     ┌─────▼──────────────────────────────────────────┐
+     │   Harmony Platform (Primary)                   │
+     │   promo-track.harmony.a2z.com (prod)           │
+     │   promo-track.beta.harmony.a2z.com (beta)      │
+     │   (React SPA — static files)                   │
+     └─────┬──────────────────────────────────────────┘
+           │ Bearer <JWT>
+     ┌─────▼──────────────────────────────────────────┐
+     │   API Gateway HttpApi (Lambda REQUEST Auth)    │
+     │   ┌──────────────────────────────────────────┐ │
+     │   │ authorizer.mjs: aws-jwt-verify           │ │
+     │   │ RS256 · Midway JWKS · alias extraction   │ │
+     │   └──────────────────────────────────────────┘ │
+     │   userdata: t8b50k0lwh.execute-api.eu-west-1   │
+     │   review:   1jvjxaiuig.execute-api.eu-west-1   │
+     │   AI proxy: 706rf9fx5c.execute-api.eu-west-1   │
+     └─────┬──────────────────────────────────────────┘
            │
-     ┌─────▼──────────────────────────────┐
-     │   AWS Amplify Hosting              │
-     │   https://main.d6iifszd48m8n      │
-     │          .amplifyapp.com           │
-     │   (React SPA — static files)       │
-     └─────┬──────────────────────────────┘
-           │ HTTPS (port 443)
-     ┌─────▼──────────────────────────────┐
-     │   EC2 Instance (t3.xlarge)         │
-     │   3.249.190.229                    │
-     │                                    │
-     │   ┌─────────────────────────────┐  │
-     │   │ Nginx (HTTPS reverse proxy) │  │
-     │   │ :443 → localhost:11434      │  │
-     │   └─────────────┬───────────────┘  │
-     │   ┌─────────────▼───────────────┐  │
-     │   │ Ollama (llama3.1:8b)        │  │
-     │   │ :11434                      │  │
-     │   └─────────────────────────────┘  │
-     └────────────────────────────────────┘
+     ┌─────▼──────────────────────────────────────────┐
+     │   DynamoDB (PAY_PER_REQUEST)                   │
+     │   promo-track-users (userId = alias)           │
+     │   promo-track-reviews (sessionId, TTL)         │
+     └────────────────────────────────────────────────┘
+
+     ┌────────────────────────────────────────────────┐
+     │   EC2 Instance (t3.xlarge) — Ollama fallback   │
+     │   3.249.190.229 · Nginx HTTPS → :11434         │
+     │   Model: llama3.1:8b                           │
+     └────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Resources Created
+## Deployment Flow
 
-### 1. AWS Amplify App — Frontend
+### Primary: Harmony Platform (Frontend)
+
+```bash
+# Build for Harmony (outputs to app/ directory with Harmony manifest)
+npm run build-harmony-app    # = vite build --outDir app && build-harmony
+
+# Deploy to beta stage
+harmony app deploy -s beta
+
+# Deploy to prod
+harmony app deploy -s prod
+```
+
+**Prod URL:** https://promo-track.harmony.a2z.com  
+**Beta URL:** https://promo-track.beta.harmony.a2z.com
+
+### Backend: SAM Stacks (Lambda + API Gateway + DynamoDB)
+
+Both backend services are deployed via AWS SAM. Each has its own `template.yaml` defining:
+- HttpApi with CORS (explicit origins) and Lambda REQUEST authorizer
+- Authorizer Lambda (Midway JWT verification via aws-jwt-verify)
+- Handler Lambdas (Node.js 20, ARM64)
+- DynamoDB table
+
+```bash
+# Deploy userdata API
+cd backend/userdata
+sam build
+sam deploy    # Uses samconfig.toml defaults (eu-west-1, stack: promo-track-userdata)
+
+# Deploy review API
+cd backend/review
+sam build
+sam deploy    # Uses samconfig.toml defaults (eu-west-1, stack: promo-track-review)
+```
+
+**Important:** All API calls require a valid Midway JWT in the `Authorization: Bearer <token>` header. Requests without a token or with an expired/invalid token receive 401/403.
+
+### Legacy/Secondary: AWS Amplify
+
+An `amplify.yml` configuration exists for legacy Amplify deployments:
+- Build command: `npm run build`
+- Artifacts `baseDirectory`: `app`
+- Three-tier cache headers: index.html (no-cache), assets (immutable), fallback (1hr)
+- CSP includes `midway-auth.amazon.com` in connect-src
+- App ID: `d6iifszd48m8n`
+
+---
+
+## Resources
+
+### 1. Harmony App — Frontend (Primary)
 
 | Property       | Value                                          |
 |----------------|------------------------------------------------|
 | App Name       | `promo-track`                                  |
-| App ID         | `d6iifszd48m8n`                                |
-| Branch         | `main`                                         |
-| Platform       | WEB (static hosting)                           |
-| URL            | https://main.d6iifszd48m8n.amplifyapp.com      |
-| Build Tool     | Vite (pre-built locally, manual deploy)        |
-| SPA Redirect   | All non-file routes → `/index.html` (status 200) |
+| Platform       | Harmony (static hosting)                       |
+| Stages         | `beta`, `prod`                                 |
+| Prod URL       | https://promo-track.harmony.a2z.com            |
+| Beta URL       | https://promo-track.beta.harmony.a2z.com       |
+| Build Tool     | Vite 8 + @amzn/harmony-build-tools             |
+| Build Command  | `npm run build-harmony-app`                    |
+| Bindle         | `amzn1.bindle.resource.p35xcahiumtgmx2r4nwq`   |
 
-### 2. EC2 Instance — Ollama AI Backend
+### 2. Backend APIs — SAM Stacks
+
+| API | Endpoint | Auth | Stack Name |
+|-----|----------|------|------------|
+| User Data | `https://t8b50k0lwh.execute-api.eu-west-1.amazonaws.com/prod` | ✅ Midway JWT | promo-track-userdata |
+| Review | `https://1jvjxaiuig.execute-api.eu-west-1.amazonaws.com/prod` | ✅ Midway JWT | promo-track-review |
+| AI (Bedrock proxy) | `https://706rf9fx5c.execute-api.eu-west-1.amazonaws.com` | ⚠️ None (shared service) | — |
+
+**Authorizer Configuration:**
+- Type: Lambda REQUEST
+- Runtime: Node.js 20 (ARM64, esbuild)
+- JWKS URI: `https://midway-auth.amazon.com/jwks.json`
+- Algorithm: RS256
+- Audiences: `promo-track.harmony.a2z.com,promo-track.beta.harmony.a2z.com`
+- Clock Skew: 30s (default aws-jwt-verify)
+- Payload Format: 2.0, `EnableSimpleResponses: false`
+
+**CORS Configuration (both APIs):**
+```yaml
+AllowOrigins:
+  - "https://promo-track.harmony.a2z.com"
+  - "https://promo-track.beta.harmony.a2z.com"
+  - "http://localhost:5173"
+AllowMethods: ["GET", "PUT/POST", "OPTIONS"]
+AllowHeaders: ["Authorization", "Content-Type"]
+```
+
+### 3. DynamoDB Tables
+
+| Table | Partition Key | TTL | Notes |
+|-------|--------------|-----|-------|
+| promo-track-users | `userId` (S) — verified alias | — | Userdata persistence |
+| promo-track-reviews | `sessionId` (S) | `expiresAt` | Review sessions with auto-expiry |
+
+### 4. EC2 Instance — Ollama AI Backend (Fallback)
 
 | Property        | Value                          |
 |-----------------|--------------------------------|
 | Instance ID     | `i-0d248919ac611baa4`          |
 | Instance Type   | `t3.xlarge` (4 vCPU, 16 GB RAM) |
-| AMI             | `ami-09c20105c9b62f893` (Amazon Linux 2023) |
 | Public IP       | `3.249.190.229`                |
 | Availability Zone | `eu-west-1c`                 |
-| VPC             | `vpc-0025510a3c048928f` (default) |
-| Subnet          | `subnet-0211e598abc8615c0`     |
-| Root Volume     | 30 GB gp3                     |
+| Model           | `llama3.1:8b` (~4.7 GB)       |
 | Key Pair        | `promo-track-key`              |
-| Key File        | `~/.ssh/promo-track-key.pem`   |
 
-**Software installed via user-data:**
-- Ollama (systemd service, listening on `0.0.0.0:11434`)
-- Model: `llama3.1:8b` (~4.7 GB)
-- Nginx (HTTPS reverse proxy on port 443 with self-signed certificate)
-- CORS headers enabled for cross-origin requests from Amplify
+### 5. AWS Amplify App — Frontend (Legacy)
 
-### 3. Security Group
-
-| Property    | Value                              |
-|-------------|------------------------------------|
-| Group ID    | `sg-065cd2d8b13cec718`             |
-| Group Name  | `promo-track-ollama-sg`            |
-| Description | Ollama API server for PromoTrack   |
-
-**Inbound Rules:**
-
-| Port  | Protocol | Source    | Description |
-|-------|----------|-----------|-------------|
-| 22    | TCP      | 0.0.0.0/0 | SSH         |
-| 443   | TCP      | 0.0.0.0/0 | HTTPS (Nginx → Ollama) |
-| 11434 | TCP      | 0.0.0.0/0 | Ollama API (direct) |
-
-### 4. Key Pair
-
-| Property  | Value                          |
-|-----------|--------------------------------|
-| Key Name  | `promo-track-key`              |
-| Location  | `~/.ssh/promo-track-key.pem`   |
-| Permissions | `400`                        |
-
----
-
-## Code Changes
-
-### `src/utils/ai.ts`
-
-Default AI endpoint changed from local Vite proxy to remote EC2:
-
-```typescript
-// Before
-const DEFAULT_CONFIG: AIConfig = {
-  provider: 'ollama',
-  model: 'llama3.1:8b',
-  endpoint: '/api/ai',
-};
-
-// After
-const DEFAULT_CONFIG: AIConfig = {
-  provider: 'remote',
-  model: 'llama3.1:8b',
-  endpoint: 'https://3.249.190.229/api',
-};
-```
+| Property       | Value                                          |
+|----------------|------------------------------------------------|
+| App ID         | `d6iifszd48m8n`                                |
+| Branch         | `main`                                         |
+| URL            | https://main.d6iifszd48m8n.amplifyapp.com      |
 
 ---
 
 ## Access & Operations
 
-### SSH into EC2
+### Redeploy frontend (Harmony)
+```bash
+cd promo-track
+npm run build-harmony-app
+harmony app deploy -s beta    # or -s prod
+```
+
+### Redeploy backend
+```bash
+cd backend/userdata && sam build && sam deploy
+cd backend/review && sam build && sam deploy
+```
+
+### SSH into EC2 (Ollama)
 ```bash
 ssh -i ~/.ssh/promo-track-key.pem ec2-user@3.249.190.229
 ```
 
-### Check Ollama status
+### Sync wiki guidelines
 ```bash
-curl -sk https://3.249.190.229/api/tags
+mwinit                # Ensure Midway session is active
+npm run sync-wiki     # Fetches wiki → src/content/guidelines-wiki.ts
 ```
 
-### Restart Ollama
+### Test API authentication
 ```bash
-ssh -i ~/.ssh/promo-track-key.pem ec2-user@3.249.190.229 \
-  "sudo systemctl restart ollama"
+# Get a Midway token (browser-based, or via mwinit + curl)
+# Test with token:
+curl -H "Authorization: Bearer <token>" \
+  https://t8b50k0lwh.execute-api.eu-west-1.amazonaws.com/prod/userdata/<alias>
+
+# Expected results:
+# No token → 401
+# Valid token, own alias → 200
+# Valid token, other alias → 403
+# Expired/malformed → 401
 ```
 
-### Pull a different model
-```bash
-ssh -i ~/.ssh/promo-track-key.pem ec2-user@3.249.190.229 \
-  "ollama pull <model-name>"
-```
+---
 
-### Redeploy frontend
-```bash
-cd promo-track
-npm run build
-cd dist && zip -r /tmp/promo-track-dist.zip . -x '*.DS_Store'
-# Then use Amplify create-deployment + start-deployment CLI commands
-```
+## Troubleshooting
+
+### AuthorizationScopes Gotcha
+If you see `"message": "Unauthorized"` on all requests after deploying:
+- **Root Cause:** `AuthorizationScopes` property must NOT appear under a Lambda REQUEST authorizer
+- SAM/CloudFormation silently enables OAuth-style scope checking when this property exists, causing all requests to fail even with valid tokens
+- **Fix:** Remove any `AuthorizationScopes` lines from the HttpApi route Auth configuration in `template.yaml`
+
+### 401 on frontend after deploy
+- Verify the `AUDIENCES` environment variable on the authorizer Lambda includes the hostname the user is accessing from
+- Check that `.harmony/harmony-metadata.json` CSP `connect-src` includes `midway-auth.amazon.com`
+
+### CORS errors
+- Verify `AllowOrigins` in `template.yaml` includes the exact origin (no trailing slash)
+- `AllowHeaders` must include `Authorization`
+
+### Stale bundle / old code showing
+- `amplify.yml` (and Harmony) set `Cache-Control: no-cache, no-store, must-revalidate` on `index.html`
+- Assets under `assets/` are fingerprinted and served with `max-age=31536000, immutable`
+- If users report old behavior: hard refresh or check CDN cache
 
 ---
 
@@ -163,21 +240,22 @@ cd dist && zip -r /tmp/promo-track-dist.zip . -x '*.DS_Store'
 |-------------------|----------------------|
 | EC2 t3.xlarge (on-demand, 24/7) | ~$122/month |
 | EBS 30 GB gp3     | ~$2.40/month         |
-| Amplify Hosting    | Free tier (up to 5 GB served/month) |
-| Data Transfer      | Minimal (~$0)        |
-| **Total**          | **~$125/month**      |
-
-> 💡 To reduce costs: stop the EC2 instance when not in use, or switch to a smaller instance type if performance allows.
+| Harmony Hosting    | Internal (no cost)   |
+| API Gateway + Lambda | Minimal (~$1)      |
+| DynamoDB (on-demand) | Minimal (~$0.50)   |
+| **Total**          | **~$126/month**      |
 
 ---
 
 ## Security Notes
 
-- Ollama API is exposed to `0.0.0.0/0` — consider restricting the security group to known IPs
-- Nginx uses a self-signed SSL certificate — browsers will show a warning on direct API access
-- SSH is open to `0.0.0.0/0` — consider restricting to your IP
-- No authentication on the Ollama API — anyone with the IP can use it
-- The app's `ALLOWED_ENDPOINTS` whitelist permits `*.amazonaws.com` and the EC2 IP
+- All backend APIs authenticated via Midway JWT (RS256)
+- CORS locked to explicit origins (no wildcard)
+- Ollama EC2 security group still open to 0.0.0.0/0 on ports 443/11434 — consider restricting
+- AI proxy (`706rf9fx5c`) does not have JWT auth — shared service, monitored
+- CSP in production does NOT include localhost:11434 (removed 2026-07-22)
+- Review session URLs use 128-bit UUID secrecy (acceptable for internal tool)
+- localStorage data namespaced per verified alias — shared browser profiles are safe
 
 ---
 
@@ -186,6 +264,10 @@ cd dist && zip -r /tmp/promo-track-dist.zip . -x '*.DS_Store'
 To remove all resources:
 
 ```bash
+# Delete SAM stacks
+aws cloudformation delete-stack --stack-name promo-track-userdata --region eu-west-1
+aws cloudformation delete-stack --stack-name promo-track-review --region eu-west-1
+
 # Terminate EC2 instance
 aws ec2 terminate-instances --instance-ids i-0d248919ac611baa4 --region eu-west-1
 
@@ -196,6 +278,6 @@ aws ec2 delete-security-group --group-id sg-065cd2d8b13cec718 --region eu-west-1
 aws ec2 delete-key-pair --key-name promo-track-key --region eu-west-1
 rm ~/.ssh/promo-track-key.pem
 
-# Delete Amplify app
+# Delete Amplify app (legacy)
 aws amplify delete-app --app-id d6iifszd48m8n --region eu-west-1
 ```

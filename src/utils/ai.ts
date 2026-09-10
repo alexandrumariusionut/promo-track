@@ -1,3 +1,5 @@
+import { AI_API_URL, AI_DEFAULT_MODEL } from '../config';
+
 export type AIProvider = 'ollama' | 'bedrock' | 'remote';
 
 export interface AIConfig {
@@ -6,50 +8,78 @@ export interface AIConfig {
   endpoint: string;
 }
 
-interface OllamaModel { 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface OllamaModel {
   name: string;
 }
 
-interface OllamaTagsResponse { 
+interface OllamaTagsResponse {
   models?: OllamaModel[];
 }
 
+interface ChatResponse {
+  message?: { content?: string };
+}
+
+const CONFIG_KEY = 'promo-track-ai-config';
+
 const DEFAULT_CONFIG: AIConfig = {
   provider: 'bedrock',
-  model: 'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
-  endpoint: 'https://706rf9fx5c.execute-api.eu-west-1.amazonaws.com',
+  model: AI_DEFAULT_MODEL,
+  endpoint: AI_API_URL,
 };
 
-const ALLOWED_ENDPOINTS = [
-  /^\/api\//,                              // local proxy
+/**
+ * Endpoints a user may point the AI client at.
+ * Remote endpoints are restricted to the one baked in at build time; the only
+ * user-selectable alternatives are local development targets. This prevents a
+ * tampered localStorage value from redirecting STAR narratives (and, once the
+ * AI proxy is behind Midway, the Bearer token) to an arbitrary host.
+ */
+const ALLOWED_ENDPOINTS: RegExp[] = [
+  /^\/api\//,                              // Vite dev proxy
   /^https?:\/\/localhost(:\d+)?\//,        // localhost
-  /^https?:\/\/127\.0\.0\.1(:\d+)?\//,    // loopback
-  /^https:\/\/[^/]*\.amazonaws\.com/,     // AWS services
+  /^https?:\/\/127\.0\.0\.1(:\d+)?\//,     // loopback
 ];
 
 export function isEndpointAllowed(endpoint: string): boolean {
+  if (endpoint === AI_API_URL) return true;
   return ALLOWED_ENDPOINTS.some(re => re.test(endpoint));
 }
 
-export function getAIConfig(): AIConfig {
-  const saved = localStorage.getItem('promo-track-ai-config');
-  if (saved) {
-    const parsed = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
-    if (!isEndpointAllowed(parsed.endpoint) || parsed.endpoint.includes('3.249.190.229')) {
-      localStorage.removeItem('promo-track-ai-config');
-      return DEFAULT_CONFIG;
-    }
-    return parsed;
-  }
-  return DEFAULT_CONFIG;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function saveAIConfig(config: Partial<AIConfig>) {
+export function getAIConfig(): AIConfig {
+  const saved = localStorage.getItem(CONFIG_KEY);
+  if (!saved) return DEFAULT_CONFIG;
+  try {
+    const parsed: unknown = JSON.parse(saved);
+    if (!isRecord(parsed)) throw new Error('not an object');
+    const merged: AIConfig = {
+      provider: (parsed.provider as AIProvider) || DEFAULT_CONFIG.provider,
+      model: typeof parsed.model === 'string' && parsed.model ? parsed.model : DEFAULT_CONFIG.model,
+      endpoint: typeof parsed.endpoint === 'string' && parsed.endpoint ? parsed.endpoint : DEFAULT_CONFIG.endpoint,
+    };
+    if (!isEndpointAllowed(merged.endpoint)) throw new Error('endpoint not allowed');
+    return merged;
+  } catch {
+    localStorage.removeItem(CONFIG_KEY);
+    return DEFAULT_CONFIG;
+  }
+}
+
+export function saveAIConfig(config: Partial<AIConfig>): void {
   if (config.endpoint && !isEndpointAllowed(config.endpoint)) {
-    throw new Error(`Endpoint not allowed. Permitted: localhost, /api/*, *.amazonaws.com`);
+    throw new Error('Endpoint not allowed. Permitted: the configured PromoTrack AI service, localhost, or /api/*');
   }
   const current = getAIConfig();
-  localStorage.setItem('promo-track-ai-config', JSON.stringify({ ...current, ...config }));
+  localStorage.setItem(CONFIG_KEY, JSON.stringify({ ...current, ...config }));
 }
 
 export async function checkConnection(): Promise<{ ok: boolean; models: string[] }> {
@@ -59,7 +89,7 @@ export async function checkConnection(): Promise<{ ok: boolean; models: string[]
     if (!res.ok) return { ok: false, models: [] };
     const data: OllamaTagsResponse = await res.json();
     return { ok: true, models: data.models?.map((m) => m.name) || [] };
-  } catch (e) {
+  } catch {
     return { ok: false, models: [] };
   }
 }
@@ -67,53 +97,74 @@ export async function checkConnection(): Promise<{ ok: boolean; models: string[]
 let lastChatTime = 0;
 const MIN_CHAT_INTERVAL_MS = 2000; // 2 seconds between requests
 
-export async function chat(
-  systemPrompt: string,
-  userMessage: string,
-  onChunk?: (text: string) => void,
-): Promise<string> {
+function throttle(): void {
   const now = Date.now();
   if (now - lastChatTime < MIN_CHAT_INTERVAL_MS) {
     throw new Error('Please wait a moment before sending another request');
   }
   lastChatTime = now;
+}
 
+function extractContent(data: unknown): string {
+  if (!isRecord(data)) return '';
+  const message = (data as ChatResponse).message;
+  return typeof message?.content === 'string' ? message.content : '';
+}
+
+/**
+ * Send a full message array (multi-turn) and return the assistant reply.
+ */
+export async function chatMessages(messages: ChatMessage[]): Promise<string> {
+  throttle();
   const config = getAIConfig();
   if (!isEndpointAllowed(config.endpoint)) throw new Error('AI endpoint not allowed');
 
   const res = await fetch(`${config.endpoint}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      stream: !!onChunk,
-    }),
+    body: JSON.stringify({ model: config.model, messages, stream: false }),
   });
-
   if (!res.ok) throw new Error(`AI request failed: ${res.status}`);
+  return extractContent(await res.json());
+}
 
-  if (!onChunk) {
-    const data = await res.json();
-    return data.message?.content || '';
-  }
+/**
+ * Single-turn chat with optional streaming.
+ */
+export async function chat(
+  systemPrompt: string,
+  userMessage: string,
+  onChunk?: (text: string) => void,
+): Promise<string> {
+  const messages: ChatMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userMessage },
+  ];
+  if (!onChunk) return chatMessages(messages);
+
+  throttle();
+  const config = getAIConfig();
+  if (!isEndpointAllowed(config.endpoint)) throw new Error('AI endpoint not allowed');
+
+  const res = await fetch(`${config.endpoint}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: config.model, messages, stream: true }),
+  });
+  if (!res.ok) throw new Error(`AI request failed: ${res.status}`);
 
   const reader = res.body?.getReader();
   if (!reader) throw new Error('No response body');
   const decoder = new TextDecoder();
   let full = '';
 
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     const chunk = decoder.decode(value, { stream: true });
     for (const line of chunk.split('\n').filter(Boolean)) {
       try {
-        const json = JSON.parse(line);
-        const text = json.message?.content || '';
+        const text = extractContent(JSON.parse(line));
         if (text) { full += text; onChunk(full); }
       } catch { /* skip malformed lines */ }
     }

@@ -1,0 +1,568 @@
+Showing
+Period 	Weekly
+Result 	All
+Issue Classifications Layer 1 	All
+Issue Classifications Layer 2 	All
+Issue Classifications Layer 3 	All
+Ingress Source 	All
+Summarize by 	Agents
+Result Root Cause 	All
+Channel 	All
+Regional Manager 	All
+Manager 	All
+Agent 	marindru
+Agent Job Level 	NULL
+Agent Region 	All
+Amazon Connect Queue Group 	All
+Overview Mode 	Customer Interaction
+Report Date 	2026/01/01 – 2026/07/31
+July 3, 2026 7:59 AM (GMT) 	Powered by Amazon Quick
+All Contacts Deep Dive
+To download, click the ellipsis menu on the top-right, and select 'Export to CSV' or 'Export to Excel'
+anedelcu 	hermtoit 	ctjarco 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	jackliuz 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	mqronaly 	None 	Chat 	DISCONNECTED 	OTHER 	GSD1 Live
+anedelcu 	hermtoit 	fkhatooa 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	paulmitw 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	ahdaher 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	natmaron 	None 	Chat 	DISCONNECTED 	NO_SHOW 	GSD1 Live
+anedelcu 	hermtoit 	svgupta 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	markocra 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	davalasa 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	igampoyg 	Basic 	Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	alyzun 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	azzrahul 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	begertru 	Basic 	Chat 	AUTH_FAILED 	null 	GSD1 Live
+anedelcu 	hermtoit 	sunvign 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+anedelcu 	hermtoit 	akuxolan 	Enhanced Chat 	RESOLVED 	null 	GSD1 Live
+Manager
+Login
+Regional
+Manager
+Customer
+Login
+RIV Level Channel 	Result 	Result Root Cause 	Amazon Connect
+Queue Group
+G
+Jan 4, 2026 7:09am 	marindru
+Jan 4, 2026 7:28am 	marindru
+Jan 4, 2026 7:48am 	marindru
+Jan 4, 2026 8:20am 	marindru
+Jan 4, 2026 9:53am 	marindru
+Jan 4, 2026 10:15am 	marindru
+Jan 4, 2026 10:47am 	marindru
+Jan 4, 2026 10:51am 	marindru
+Jan 4, 2026 12:01pm 	marindru
+Jan 4, 2026 12:32pm 	marindru
+Jan 4, 2026 1:26pm 	marindru
+Jan 4, 2026 2:19pm 	marindru
+Jan 4, 2026 2:41pm 	marindru
+Jan 4, 2026 3:29pm 	marindru
+Jan 6, 2026 7:04am 	marindru
+Jan 6, 2026 7:36am 	marindru
+Contact Timestamp 	Agent Login 	Amazon
+Connect
+URL
+Omnia
+Contact
+URL
+Omnia
+Transcript
+URL
+Total
+Overview
+Customer Interaction
+Agents List
+Click an agent row to filter other visuals
+20.33 	19.83 	22.28 	16.30 	1.75 	84.50% 	92.86% 	7.73% 	87.96% 	3.36% 	4.69%
+Overall
+rAHT
+(minutes)
+GSD1 Live
+cAHT
+(minutes)
+Esc / Rpt
+cAHT
+(minutes)
+Assist
+cAHT
+(minutes)
+Task Helpdesk
+AHT
+(minutes)
+ACW
+Live
+(minutes)
+CSAT% 	ARR 	CONC% 	Quality
+Score
+XFER% 	MISS%
+20.33 	19.83 	22.28 	16.30 	1.75 	84.50% 	92.86% 	7.73% 	87.96% 	3.36% 	4.69%
+marindru
+Agent Login
+Total
+GSD1 Scorecard
+Weekly Contact Metrics
+Customer Experience
+Deep Dive Filters
+All
+Concurrent Chat
+All Contacts
+Deep Dive View Mode
+26.07
+18.41 17.52
+13.42
+19.3922.5120.07
+26.56
+21.41
+17.62
+32.97
+21.28 20.00
+16.16
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+Max Threshold
+21.28
++/-
+-1.45
+GSD1 Live cAHT
+19.83 mins
+Assist cAHT
+No data
+Max Threshold
+18.00
++/-
+No data
+ACW Live
+1.75 mins
+Max Threshold
+2.00
++/-
+-0.25
+2.10
+1.06 1.11
+2.49 2.10 1.73 1.89
+0.89
+2.33
+1.78 1.63
+3.54
+1.38
+3.38
+1.71
+2.29
+1.11
+1.73
+W2	
+W5	
+W7	
+W9	
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+Task Helpdesk AHT
+16.30 mins
+Max Threshold
+10.50
++/-
+5.80
+21.93
+17.32
+13.1716.38
+12.03
+15.96
+27.45
+11.07 	11.26
+15.42
+7.70
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+Overall rAHT
+20.33 mins
+smaller radius means better performance
+Customer Interaction
+GSD1 Live cAHT
+ACW Live
+Task Helpdesk AHT 	Escalation / Repeat cAHT
+Assist cAHT
+0.00
+5.00
+10.00
+15.00
+20.00
+25.00
+0.00
+0.60
+1.20
+1.80
+2.40
+3.00
+0.00
+5.00
+10.00
+15.00
+20.00
+25.00
+0.00
+5.00
+10.00
+15.00
+20.00
+25.00
+25.88
+19.75 18.12
+13.42
+22.14 21.37
+26.60
+20.04
+32.97
+21.4120.8019.05
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+Max Threshold
+29.00
++/-
+-6.72
+Escalation / Repeat cAHT
+22.28 mins
+CSAT%
+84.50%
+Min Threshold
+85.00%
++/-
+-0.50%
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+16.1819.87
+25.52
+37.42
+28.30
+12.1713.71
+33.82
+27.12
+16.93 19.34 21.73
+13.88
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+86.67%
+100.00%
+85.71%
+94.12%
+80.00%
+96.15%
+55.56%
+87.50%
+64.29%
+100.00%
+87.50%
+62.50%
+77.27%
+50.00%
+100.00%
+66.67%
+90.91%
+100.00%
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+ARR
+92.86%
+Min Threshold
+85.00%
++/-
+7.86%
+88.88%
+93.93% 95.12%
+87.50%
+100.00%
+90.32%
+96.29%
+80.55%
+100.00%
+91.66%
+88.57%
+96.61%
+100.00%
+95.34%
+89.28%
+100.00%
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+CONC%
+7.73%
+Min Threshold
+18.00%
++/-
+-10.27%
+3.63%
+9.86%
+14.25%
+16.99%
+7.61%
+0.00%
+12.72%
+1.02%
+8.00%
+11.86%
+0.00% 0.00%
+16.74%
+5.85%
+0.00%
+19.91%
+0.00%
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+XFER%
+3.36%
+Min Threshold
+5.00%
++/-
+-1.64%
+9.23%
+1.88%
+5.12%
+1.72%
+0.00%
+4.61%
+0.00%
+6.12%
+0.00%
+4.16%
+1.85%
+0.00%
+2.63%
+6.75%
+2.00%
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+Quality Score Live
+87.96% 	62.50%
+95.00% 	96.67%
+75.00%
+100.00%
+75.00%
+55.00%
+5.00%
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+Quality Score Task
+58.33%
+Contacts Missed
+4.69% 4.10%
+7.46%
+2.94%
+11.68%
+6.66%
+14.28%
+8.97%
+2.12%
+4.54%
+1.85%
+9.09%
+3.70%
+8.33%
+2.27% 3.84%
+10.25%
+3.57%
+0.00%
+5.35%
+1.61%
+5.88%
+1.29%
+9.09%
+W2	
+W5	
+W7	
+W9
+W11
+W13
+W15
+W17
+W19
+W21
+W23
+W25
+W27
+Metrics+
+1,379
+01:39:17
+00:56:09
+00:00:00
+00:37:24
+00:26:54
+00:09:05
+84.50%
+84.96%
+80%
+0%
+84.30%
+84.75%
+80.00%
+0.00%
+84.71%
+85.17%
+80.00%
+0.00%
+242
+11
+409
+484
+92.86%
+92.77%
+94.44%
+1.47%
+5.65%
+4.69%
+3.56%
+0.33%
+Metrics+
+Contacts Received
+GSD1 Live Max cAHT hh:mm:ss
+Esc / Rpt Max cAHT hh:mm:ss
+Assist Max cAHT hh:mm:ss
+Task Helpdesk Max AHT hh:mm:ss
+ACW Live Max hh:mm:ss
+ACW Task Max hh:mm:ss
+CSAT%
+CSAT% GSD1 Live
+CSAT% Escalation / Repeat
+CSAT% Task Helpdesk
+CSAT% Q2
+CSAT% Q2 GSD1 Live
+CSAT% Q2 Escalation / Repeat
+CSAT% Q2 Task Helpdesk
+CSAT% Q3
+CSAT% Q3 GSD1 Live
+CSAT% Q3 Escalation / Repeat
+CSAT% Q3 Task Helpdesk
+CSAT% Assist
+CSAT% Q2A Assist
+CSAT% Q3A Assist
+Feedbacks Received
+DSAT
+CSAT 5 Ratings
+CSAT All Ratings
+ARR
+ARR GSD1 Live
+ARR Escalation / Repeat
+Case Left Open %
+Case Re-open Rate %
+Contacts Missed %
+Contacts Rejected %
+System Error Contacts %
+
+-- 1 of 1 --
+

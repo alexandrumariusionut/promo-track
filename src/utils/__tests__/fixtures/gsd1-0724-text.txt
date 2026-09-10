@@ -1,0 +1,327 @@
+=== PDF TEXT EXTRACTION (2026-07-24) ===
+File: /Users/marindru/Downloads/GSD1_Contact_Metrics_2026-07-24T09_11_27.pdf
+Size: 0 bytes
+Pages: 1
+
+============================================================
+VARIANT A: items.map(i => i.str).join(' ')
+============================================================
+
+--- Page 1 ---
+Showing  Period   Weekly  Result   All  Issue Classifications Layer 1   All  Issue Classifications Layer 2   All  Issue Classifications Layer 3   All  Ingress Source   All  Summarize by   Agents  Result Root Cause   All  Channel   All  Regional Manager   All  Manager   All  Agent   marindru  Agent Job Level   NULL  Agent Region   All  Amazon Connect Queue Group   All  Overview Mode   Customer Interaction  Report Date   2026/01/01 – 2026/07/31  July 24, 2026 9:10 AM (GMT)   Powered by Amazon Quick  All Contacts Deep Dive  To download, click the ellipsis menu on the top-right, and select 'Export to CSV' or 'Export to Excel'  anedelcu   hermtoit   ctjarco   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   jackliuz   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   mqronaly   None   Chat   DISCONNECTED   OTHER   GSD1 Live  anedelcu   hermtoit   fkhatooa   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   paulmitw   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   ahdaher   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   natmaron   None   Chat   DISCONNECTED   NO_SHOW   GSD1 Live  anedelcu   hermtoit   svgupta   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   markocra   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   davalasa   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   igampoyg   Basic   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   alyzun   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   azzrahul   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   begertru   Basic   Chat   AUTH_FAILED   null   GSD1 Live  anedelcu   hermtoit   sunvign   Enhanced   Chat   RESOLVED   null   GSD1 Live  anedelcu   hermtoit   akuxolan   Enhanced   Chat   RESOLVED   null   GSD1 Live  Manager Login  Regional Manager  Customer Login  RIV Level   Channel   Result   Result Root Cause   Amazon Connect Queue Group  G  Jan 4, 2026 7:09am   marindru  Jan 4, 2026 7:28am   marindru  Jan 4, 2026 7:48am   marindru  Jan 4, 2026 8:20am   marindru  Jan 4, 2026 9:53am   marindru  Jan 4, 2026 10:15am   marindru  Jan 4, 2026 10:47am   marindru  Jan 4, 2026 10:51am   marindru  Jan 4, 2026 12:01pm   marindru  Jan 4, 2026 12:32pm   marindru  Jan 4, 2026 1:26pm   marindru  Jan 4, 2026 2:19pm   marindru  Jan 4, 2026 2:41pm   marindru  Jan 4, 2026 3:29pm   marindru  Jan 6, 2026 7:04am   marindru  Jan 6, 2026 7:36am   marindru  Contact Timestamp   Agent Login   Amazon Connect URL  Omnia Contact URL  Omnia Transcript URL  Total  Overview  Customer Interaction  Agents List  Click an agent row to filter other visuals  20.16   19.82   20.69   15.46   1.75   84.39%   93.04%   7.02%   88.17%   3.31%   4.79%  Overall rAHT (minutes)  GSD1 Live cAHT (minutes)  Esc / Rpt cAHT (minutes)  Assist cAHT (minutes)  Task Helpdesk AHT (minutes)  ACW Live (minutes)  CSAT%   ARR   CONC%   Quality Score  XFER%   MISS%  20.16   19.82   20.69   15.46   1.75   84.39%   93.04%   7.02%   88.17%   3.31%   4.79%  marindru  Agent Login  Total  GSD1 Scorecard  Weekly Contact Metrics  Customer Experience  Deep Dive Filters  All  Concurrent Chat  All Contacts  Deep Dive View Mode  26.07  18.41   17.52  13.42  22.51  17.42  26.56  21.41  17.62  32.97  21.28   20.00  15.83  22.65  16.85  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29 Max Threshold  21.28  +/-  -1.46  GSD1 Live cAHT  19.82 mins  Assist cAHT  No data  Max Threshold  18.00  +/-  No data  ACW Live  1.75 mins  Max Threshold  2.00  +/-  -0.25  2.10  1.06   1.11  2.49   2.10   1.73   1.89  0.89  2.33  1.78   1.63  3.54  1.38  3.38  1.71  2.29  1.64  2.28  1.64  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  Task Helpdesk AHT  15.46 mins  Max Threshold  10.50  +/-  4.96  21.93  17.32   16.38   15.96  27.45  11.07   11.26  15.42  7.70  3.58  8.23   9.86  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  Overall rAHT  20.16 mins  smaller radius means better performance  Customer Interaction  GSD1 Live cAHT  ACW Live  Task Helpdesk AHT   Escalation / Repeat cAHT  Assist cAHT  0.00  5.00  10.00  15.00  20.00  25.00  0.00  0.60  1.20  1.80  2.40  3.00  0.00  5.00  10.00  15.00  20.00  25.00  0.00  5.00  10.00  15.00  20.00  25.00  25.88  19.75   18.12  13.42  22.14   21.37  26.60  20.04  32.97  21.41   19.70  15.60  21.32  16.08  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  Max Threshold  29.00  +/-  -8.31  Escalation / Repeat cAHT  20.69 mins  CSAT%  84.39%  Min Threshold  85.00%  +/-  -0.61%  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  19.87  25.52  37.42  28.30  13.71  33.82  27.12  16.93   19.34   21.73  15.45  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  86.67%  100.00%  85.71%  94.12%  80.00%  96.15%  55.56%  87.50%  64.29%  100.00%  87.50%  62.50%  77.27%  50.00%  100.00%  66.67%  90.91%  100.00%  77.27%  87.50%  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  ARR  93.04%  Min Threshold  85.00%  +/-  8.04%  88.88%  93.93%   95.12%  87.50%  100.00%  90.32%  96.29%  80.55%  100.00%  91.66%  88.57%  96.61%  100.00%  95.34%  89.28%  100.00%  88.46%  94.11%  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  CONC%  7.02%  Min Threshold  18.00%  +/-  -10.98%  3.63%  9.86%  14.25%  16.99%  7.61%  0.00%  12.72%  1.02%  8.00%  11.86%  0.00%   0.00%  16.74%  5.85%  0.00%  19.91%  0.00%   0.00%  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  XFER%  3.31%  Min Threshold  5.00%  +/-  -1.69%  9.23%  1.88%  5.12%  1.72%  0.00%  4.61%  0.00%  6.12%  0.00%  4.16%  1.85%  0.00%  2.63%  6.75%  2.32%  4.76%  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  Quality Score Live  88.17%   62.50%  95.00%   96.67%  75.00%  100.00%  80.00%  55.00%  100.00%  5.00%  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  Quality Score Task  68.75%  Contacts Missed  4.79%   4.10%  7.46%  2.94%  11.68%  6.66%  14.28%  8.97%   9.09%  3.70%  8.33%  4.76%  7.84%  2.12%  10.25%  3.57%  1.38%   2.56%  5.35%  1.61%  5.88%  3.79%  1.29%  W2  W5  W7  W9  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  Metrics+  1,529  01:39:17  00:56:09  00:00:00  00:37:24  00:26:54  00:09:05  84.39%  85.06%  71.43%  0%  84.39%  85.06%  71.43%  0.00%  84.39%  85.06%  71.43%  0.00%  269  12  454  538  93.04%  92.93%  95.45%  1.56%  5.38%  4.79%  3.41%  0.30%  Metrics+  Contacts Received  GSD1 Live Max cAHT hh:mm:ss  Esc / Rpt Max cAHT hh:mm:ss  Assist Max cAHT hh:mm:ss  Task Helpdesk Max AHT hh:mm:ss  ACW Live Max hh:mm:ss  ACW Task Max hh:mm:ss  CSAT%  CSAT% GSD1 Live  CSAT% Escalation / Repeat  CSAT% Task Helpdesk  CSAT% Q2  CSAT% Q2 GSD1 Live  CSAT% Q2 Escalation / Repeat  CSAT% Q2 Task Helpdesk  CSAT% Q3  CSAT% Q3 GSD1 Live  CSAT% Q3 Escalation / Repeat  CSAT% Q3 Task Helpdesk  CSAT% Assist  CSAT% Q2A Assist  CSAT% Q3A Assist  Feedbacks Received  DSAT  CSAT 5 Ratings  CSAT All Ratings  ARR  ARR GSD1 Live  ARR Escalation / Repeat  Case Left Open %  Case Re-open Rate %  Contacts Missed %  Contacts Rejected %  System Error Contacts %
+
+============================================================
+VARIANT B: Line reconstruction (group by transform[5] Y coord)
+============================================================
+
+--- Page 1 ---
+GSD1 Scorecard
+Weekly Contact Metrics
+Agents List  Overview
+Click an agent row to filter other visuals
+Customer Interaction
+Agent Login  Overall  GSD1 Live  Esc / Rpt  Assist  Task Helpdesk  ACW  CSAT%   ARR   CONC%   Quality  XFER%   MISS%
+smaller radius means better performance
+rAHT cAHT cAHT cAHT AHT Live Score
+(minutes) (minutes) (minutes) (minutes) (minutes) (minutes)
+GSD1 Live cAHT
+Total  20.16   19.82   20.69   15.46   1.75   84.39%   93.04%   7.02%   88.17%   3.31%   4.79%
+25.00
+marindru  20.16   19.82   20.69   15.46   1.75   84.39%   93.04%   7.02%   88.17%   3.31%   4.79%
+20.00
+15.00
+10.00
+ACW Live  Assist cAHT
+3.00
+2.40
+5.00
+1.80
+1.20
+0.60
+0.00
+0.00
+0.00
+0.00
+5.00
+5.00
+10.00
+10.00
+15.00
+15.00
+20.00
+20.00
+25.00
+25.00
+Task Helpdesk AHT   Escalation / Repeat cAHT
+Customer Interaction  Metrics+
+Metrics+
+Escalation / Repeat cAHT
+GSD1 Live cAHT
+32.97
+37.42
+33.82
+Contacts Received  1,529
+26.56
+26.07
+28.30
+27.12
+25.52
+22.65
+22.51
+21.41
+21.28
+20.69 mins
+20.00
+19.82 mins
+21.73
+GSD1 Live Max cAHT hh:mm:ss  01:39:17
+18.41
+19.87
+19.34
+17.62
+17.52
+17.42
+16.85
+15.83
+16.93
+15.45
+13.42
+13.71
+Esc / Rpt Max cAHT hh:mm:ss  00:56:09
+Max Threshold  +/-  Max Threshold  +/-
+Assist Max cAHT hh:mm:ss  00:00:00
+W2  W5  W7  W9  W2  W5  W7  W9
+W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29
+21.28  -1.46  29.00  -8.31
+Task Helpdesk Max AHT hh:mm:ss  00:37:24
+ACW Live Max hh:mm:ss  00:26:54
+Assist cAHT  Task Helpdesk AHT
+27.45
+ACW Task Max hh:mm:ss  00:09:05
+21.93
+17.32    CSAT%  84.39%
+16.38
+15.96
+15.42
+No data  15.46 mins
+11.26
+11.07
+9.86
+CSAT% GSD1 Live  85.06%
+8.23
+7.70
+3.58
+CSAT% Escalation / Repeat  71.43%
+Max Threshold  +/-  Max Threshold  +/-
+W2  W5  W7  W9  W2  W5  W7  W9
+CSAT% Task Helpdesk  0%
+W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29
+18.00  No data  10.50  4.96
+CSAT% Q2  84.39%
+CSAT% Q2 GSD1 Live  85.06%
+ACW Live  Overall rAHT
+32.97
+3.54
+3.38
+CSAT% Q2 Escalation / Repeat  71.43%
+26.60
+25.88
+2.49
+2.33
+2.29
+2.28
+2.10 2.10
+CSAT% Q2 Task Helpdesk  0.00%
+22.14
+1.89
+21.41
+21.37
+21.32
+1.78
+1.73
+1.71
+1.63  1.64  1.64
+20.04
+1.75 mins
+19.75
+19.70
+1.38
+18.12
+1.11
+1.06
+16.08
+0.89  15.60
+CSAT% Q3  84.39%
+13.42
+20.16 mins
+Max Threshold  +/-  CSAT% Q3 GSD1 Live  85.06%
+W2  W5  W7  W9  W2  W5  W7  W9
+W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29
+CSAT% Q3 Escalation / Repeat  71.43%
+2.00  -0.25
+CSAT% Q3 Task Helpdesk  0.00%
+CSAT% Assist
+Customer Experience
+CSAT% Q2A Assist
+CSAT% Q3A Assist
+100.00%  100.00%  100.00%  100.00%  100.00%  100.00%  100.00%  100.00%
+CSAT%  ARR
+96.15%
+94.12%
+90.91%
+96.61%
+96.29%
+87.50%  87.50%  87.50%
+86.67%
+95.34%
+85.71%
+95.12%
+Feedbacks Received  269
+94.11%
+93.93%
+80.00%
+77.27%  77.27%
+91.66%
+90.32%
+89.28%
+66.67%  88.88%
+88.57%
+88.46%
+DSAT  12
+64.29%
+84.39%  93.04%
+62.50%  87.50%
+55.56%
+50.00%
+CSAT 5 Ratings  454
+80.55%
+Min Threshold  +/-  Min Threshold  +/-
+CSAT All Ratings  538
+W2  W5  W7  W9  W2  W5  W7  W9
+W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29
+85.00%  -0.61%  85.00%  8.04%
+ARR  93.04%
+ARR GSD1 Live  92.93%
+19.91%
+Quality Score Live
+CONC%
+ARR Escalation / Repeat  95.45%
+16.99%
+16.74%
+100.00%  100.00%
+96.67%
+95.00%
+14.25%
+80.00%
+12.72%  Case Left Open %  1.56%
+75.00%
+11.86%
+62.50%
+88.17%
+9.86%
+55.00%
+8.00%
+7.02%
+7.61%
+Case Re-open Rate %  5.38%
+5.85%
+3.63%
+1.02%
+Quality Score Task
+5.00%
+Contacts Missed %  4.79%
+0.00%  0.00%   0.00%  0.00%  0.00%   0.00%
+Min Threshold  +/-
+Contacts Rejected %  3.41%
+W2  W5  W7  W9  W2  W5  W7  W9
+W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29
+68.75%
+18.00%  -10.98%
+System Error Contacts %  0.30%
+14.28%
+XFER%  Contacts Missed
+11.68%
+9.23%
+10.25%
+9.09%
+8.97%
+6.75%
+8.33%
+7.84%
+6.12%
+7.46%
+6.66%
+5.12%
+4.76%
+3.31%
+5.88%
+4.61%
+5.35%
+4.16%
+4.76%
+4.10%
+3.79%
+3.70%
+3.57%
+2.63%
+2.94%
+2.32%
+2.56%
+1.88%
+1.85%
+1.72%
+2.12%
+4.79%
+1.61%
+1.38%
+1.29%
+0.00%  0.00%  0.00%  0.00%
+Min Threshold  +/-
+W2  W5  W7  W9  W2  W5  W7  W9
+W11  W13  W15  W17  W19  W21  W23  W25  W27  W29  W11  W13  W15  W17  W19  W21  W23  W25  W27  W29
+5.00%  -1.69%
+Deep Dive Filters  All Contacts Deep Dive
+To download, click the ellipsis menu on the top-right, and select 'Export to CSV' or 'Export to Excel'
+Deep Dive View Mode
+All Contacts
+Contact Timestamp   Agent Login   Amazon  Omnia  Omnia  Manager  Regional  Customer  RIV Level   Channel   Result   Result Root Cause   Amazon Connect  G
+Connect Contact Transcript Login Manager Login Queue Group
+Concurrent Chat
+URL URL URL
+All
+Total
+Jan 4, 2026 7:09am   marindru  anedelcu   hermtoit   ctjarco   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 7:28am   marindru  anedelcu   hermtoit   jackliuz   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 7:48am   marindru  anedelcu   hermtoit   mqronaly   None   Chat   DISCONNECTED   OTHER   GSD1 Live
+Jan 4, 2026 8:20am   marindru  anedelcu   hermtoit   fkhatooa   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 9:53am   marindru  anedelcu   hermtoit   paulmitw   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 10:15am   marindru  anedelcu   hermtoit   ahdaher   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 10:47am   marindru  anedelcu   hermtoit   natmaron   None   Chat   DISCONNECTED   NO_SHOW   GSD1 Live
+Jan 4, 2026 10:51am   marindru  anedelcu   hermtoit   svgupta   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 12:01pm   marindru  anedelcu   hermtoit   markocra   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 12:32pm   marindru  anedelcu   hermtoit   davalasa   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 1:26pm   marindru  anedelcu   hermtoit   igampoyg   Basic   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 2:19pm   marindru  anedelcu   hermtoit   alyzun   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 2:41pm   marindru  anedelcu   hermtoit   azzrahul   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 4, 2026 3:29pm   marindru  anedelcu   hermtoit   begertru   Basic   Chat   AUTH_FAILED   null   GSD1 Live
+Jan 6, 2026 7:04am   marindru  anedelcu   hermtoit   sunvign   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Jan 6, 2026 7:36am   marindru  anedelcu   hermtoit   akuxolan   Enhanced   Chat   RESOLVED   null   GSD1 Live
+Showing
+Period   Weekly
+Result   All
+Issue Classifications Layer 1   All
+Issue Classifications Layer 2   All
+Issue Classifications Layer 3   All
+Ingress Source   All
+Summarize by   Agents
+Result Root Cause   All
+Channel   All
+Regional Manager   All
+Manager   All
+Agent   marindru
+Agent Job Level   NULL
+Agent Region   All
+Amazon Connect Queue Group   All
+Overview Mode   Customer Interaction
+Report Date   2026/01/01 – 2026/07/31
+July 24, 2026 9:10 AM (GMT)   Powered by Amazon Quick

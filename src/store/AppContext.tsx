@@ -1,7 +1,10 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef, ReactNode } from 'react';
-import { AppState, STAREntry, Metric, UserProfile, ActivityLogEntry, DimensionAnalysis } from '../types';
-import { loadState, saveState } from './storage';
-import { saveUserData } from '../utils/userDataApi';
+import React, { createContext, useContext, useReducer, useEffect, useRef, useState, useCallback, useMemo, ReactNode } from 'react';
+import { AppState, STAREntry, Metric, UserProfile, ActivityLogEntry, DimensionAnalysis, AISuggestedDimension } from '../types';
+import { loadState, saveState, normalizeState } from './storage';
+import { saveUserData, loadUserData, ConflictError } from '../utils/userDataApi';
+import { AuthUnavailableError, AuthDeniedError } from '../utils/apiFetch';
+import { isTokenAvailable } from '../utils/midwayAuth';
+import { showError } from '../components/ErrorSnackbar';
 
 function logEntry(action: string, detail: string): ActivityLogEntry {
   return { timestamp: new Date().toISOString(), action, detail };
@@ -20,7 +23,8 @@ type Action =
   | { type: 'SET_ADDITIONAL_INFO'; payload: string }
   | { type: 'LOAD_STATE'; payload: AppState }
   | { type: 'RESET_STATE'; payload: AppState }
-  | { type: 'SET_DIMENSION_ANALYSIS'; payload: DimensionAnalysis };
+  | { type: 'SET_DIMENSION_ANALYSIS'; payload: DimensionAnalysis }
+  | { type: 'SET_ENTRY_AI_SUGGESTIONS'; payload: { entryId: string; suggestions: AISuggestedDimension[] } };
 
 function reducer(state: AppState, action: Action): AppState {
   const log = state.activityLog || [];
@@ -85,6 +89,18 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_DIMENSION_ANALYSIS':
       next = { ...state, dimensionAnalysis: action.payload };
       break;
+    case 'SET_ENTRY_AI_SUGGESTIONS': {
+      const { entryId, suggestions } = action.payload;
+      next = {
+        ...state,
+        star: state.star.map(s =>
+          s.id === entryId
+            ? { ...s, aiSuggestedDimensions: suggestions.length > 0 ? suggestions : undefined }
+            : s,
+        ),
+      };
+      break;
+    }
     default:
       return state;
   }
@@ -96,48 +112,92 @@ interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
   userId: string | null;
+  /** True when the last cloud save was rejected because another device/tab saved first. */
+  syncConflict: boolean;
+  /** Discard local changes and reload the newer cloud copy. */
+  reloadFromCloud: () => Promise<void>;
+  /** Keep local changes and overwrite the cloud copy. */
+  forceCloudSave: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-export function AppProvider({ children, initialState, userId }: {
+const CLOUD_SAVE_DEBOUNCE_MS = 2000;
+const LOCAL_AUTOSAVE_MS = 5 * 60 * 1000;
+
+export function AppProvider({ children, initialState, initialVersion = 0, userId }: {
   children: ReactNode;
   initialState?: AppState;
+  /** Version of the cloud record `initialState` came from (0 when none). */
+  initialVersion?: number;
   userId?: string | null;
 }) {
   const [state, dispatch] = useReducer(reducer, initialState || loadState());
+  const [syncConflict, setSyncConflict] = useState(false);
   const stateRef = useRef(state);
-  stateRef.current = state;
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const versionRef = useRef(initialVersion);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Keep a ref to the latest state for timers (updated in an effect, not during render)
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   // Persist to localStorage on every state change (fallback)
   useEffect(() => {
     saveState(state);
   }, [state]);
 
+  const pushToCloud = useCallback(async (force = false) => {
+    if (!userId) return;
+    try {
+      const newVersion = await saveUserData(userId, stateRef.current, force ? undefined : versionRef.current);
+      versionRef.current = newVersion;
+      setSyncConflict(false);
+    } catch (err) {
+      if (err instanceof ConflictError) {
+        // Do not clobber newer data; let the user decide.
+        setSyncConflict(true);
+      } else if (err instanceof AuthUnavailableError || err instanceof AuthDeniedError) {
+        // Non-blocking: localStorage still works; show snackbar only on deployed hosts
+        if (!isTokenAvailable()) {
+          console.warn('[AppContext] Cloud save skipped — Midway token unavailable');
+        } else {
+          showError('Your Amazon session needs refreshing — please reload');
+        }
+      }
+      // Other errors silently ignored (transient network issues); localStorage has the data
+    }
+  }, [userId]);
+
   // Debounced cloud save when userId is present
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || syncConflict) return;
     clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveUserData(userId, stateRef.current).catch(() => {});
-    }, 2000);
+    saveTimerRef.current = setTimeout(() => { void pushToCloud(); }, CLOUD_SAVE_DEBOUNCE_MS);
     return () => clearTimeout(saveTimerRef.current);
-  }, [state, userId]);
+  }, [state, userId, syncConflict, pushToCloud]);
 
-  // Auto-save every 5 minutes
+  // Auto-save to localStorage every 5 minutes as a belt-and-braces measure
   useEffect(() => {
-    const interval = setInterval(() => {
-      saveState(stateRef.current);
-    }, 5 * 60 * 1000);
+    const interval = setInterval(() => saveState(stateRef.current), LOCAL_AUTOSAVE_MS);
     return () => clearInterval(interval);
   }, []);
 
-  return (
-    <AppContext.Provider value={{ state, dispatch, userId: userId || null }}>
-      {children}
-    </AppContext.Provider>
+  const reloadFromCloud = useCallback(async () => {
+    if (!userId) return;
+    const record = await loadUserData(userId);
+    versionRef.current = record.version;
+    if (record.data) dispatch({ type: 'RESET_STATE', payload: normalizeState(record.data) });
+    setSyncConflict(false);
+  }, [userId]);
+
+  const forceCloudSave = useCallback(() => pushToCloud(true), [pushToCloud]);
+
+  const value = useMemo<AppContextValue>(
+    () => ({ state, dispatch, userId: userId || null, syncConflict, reloadFromCloud, forceCloudSave }),
+    [state, userId, syncConflict, reloadFromCloud, forceCloudSave],
   );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {

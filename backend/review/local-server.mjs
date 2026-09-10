@@ -1,46 +1,24 @@
-// Local test server — run with: node local-server.mjs
-import express from 'express';
-import cors from 'cors';
-import { randomUUID } from 'crypto';
+// Local dev server running the real Lambda handlers against an in-memory store.
+// Run: npm start   (uses node --import ../local/register-fake-dynamo.mjs)
+import { createLocalApp } from '../local/harness.mjs';
+import { handler as create } from './src/create.mjs';
+import { handler as get } from './src/get.mjs';
+import { handler as comments } from './src/comments.mjs';
+import { handler as status } from './src/status.mjs';
+import { handler as revoke } from './src/revoke.mjs';
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+process.env.TABLE_NAME ||= 'promo-track-reviews';
 
-const db = new Map();
-
-app.use((req, _res, next) => { console.log(`${req.method} ${req.url}`); next(); });
-
-app.post('/reviews', (req, res) => {
-  const { entries, employeeName, targetLevel } = req.body;
-  const reviewEntries = entries.map(({ id, title, situation, task, action, results, principles, reviewComments }) =>
-    ({ id, title, situation, task, action, results, principles, reviewComments: reviewComments || [] }));
-  const sessionId = randomUUID();
-  db.set(sessionId, { sessionId, entries: reviewEntries, employeeName, targetLevel, status: 'pending', comments: {}, createdAt: Date.now() });
-  const reviewUrl = `http://localhost:5180/review/${sessionId}`;
-  console.log(`  → Created session: ${sessionId}`);
-  res.status(201).json({ sessionId, reviewUrl });
+const app = createLocalApp({
+  name: 'review',
+  routes: [
+    { method: 'post', path: '/reviews', handler: create },
+    { method: 'get', path: '/reviews/:sessionId', handler: get },
+    { method: 'delete', path: '/reviews/:sessionId', handler: revoke },
+    { method: 'post', path: '/reviews/:sessionId/comments', handler: comments },
+    { method: 'get', path: '/reviews/:sessionId/status', handler: status },
+  ],
 });
 
-app.get('/reviews/:sessionId', (req, res) => {
-  const session = db.get(req.params.sessionId);
-  if (!session) return res.status(404).json({ error: 'Not found' });
-  res.json(session);
-});
-
-app.post('/reviews/:sessionId/comments', (req, res) => {
-  const session = db.get(req.params.sessionId);
-  if (!session) return res.status(404).json({ error: 'Not found' });
-  session.comments = req.body.comments;
-  session.status = 'reviewed';
-  console.log(`  → Comments submitted for: ${req.params.sessionId}`);
-  res.json({ success: true });
-});
-
-app.get('/reviews/:sessionId/status', (req, res) => {
-  const session = db.get(req.params.sessionId);
-  if (!session) return res.status(404).json({ error: 'Not found' });
-  res.json({ status: session.status, ...(session.status === 'reviewed' ? { comments: session.comments } : {}) });
-});
-
-app.listen(3001, () => console.log('Review API running on http://localhost:3001'));
+const PORT = Number(process.env.PORT) || 3001;
+app.listen(PORT, '127.0.0.1', () => console.log(`Review API (real handlers, in-memory DB) on http://127.0.0.1:${PORT}`));

@@ -9,8 +9,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { v4 as uuid } from 'uuid';
 import { useApp } from '../store/AppContext';
 import { Metric } from '../types';
-import { extractPDFText, parseGSDMetrics } from '../utils/pdfImport';
-import GSDScorecard from '../components/GSDScorecard';
+import { extractPDFText, extractPDFItems, parseGSDMetricsV2, ParseDiagnostics } from '../utils/pdfImport';
+import MetricEvolution from '../components/MetricEvolution';
 import PageTip from '../components/PageTip';
 
 const METRIC_TYPES = ['CSAT', 'Case ARR', 'AHT', 'CPH', 'ACW', 'Contacts Missed %', 'Dual Chat Overlap %', 'CSAT Rating', 'Transfer Rate', 'Feedbacks Received', 'DSATs Received', 'Escalated', 'AHT Assist', 'Dual Chat Rate', 'Custom'];
@@ -40,6 +40,7 @@ export default function MetricsPage() {
   const [pdfPreview, setPdfPreview] = useState<Metric[] | null>(null);
   const [pdfSelected, setPdfSelected] = useState<Set<string>>(new Set());
   const [pdfError, setPdfError] = useState('');
+  const [pdfDiagnostics, setPdfDiagnostics] = useState<ParseDiagnostics | null>(null);
   const [showRawTable, setShowRawTable] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState(false);
@@ -55,13 +56,28 @@ export default function MetricsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setPdfError('');
+    setPdfDiagnostics(null);
     setImporting(true);
     try {
       const text = await extractPDFText(file);
-      const metrics = parseGSDMetrics(text);
-      if (metrics.length === 0) { setPdfError('No metrics found in PDF.'); return; }
-      setPdfPreview(metrics);
-      setPdfSelected(new Set(metrics.map((m: Metric) => m.id)));
+      const items = await extractPDFItems(file);
+      const result = parseGSDMetricsV2(text, items);
+      setPdfDiagnostics(result.diagnostics);
+      if (result.metrics.length === 0) {
+        // Only error when truly nothing was found AND there are no "no data" diagnoses
+        const hasNoDataDiagnoses = result.diagnostics.missing.some(m => m.reason.includes('no data'));
+        if (!hasNoDataDiagnoses) {
+          setPdfError('PDF read but no metric data found — check the report date range. ' +
+            (result.diagnostics.warnings.length > 0 ? result.diagnostics.warnings.join('; ') : ''));
+        } else {
+          setPdfError('');
+          setPdfPreview([]);
+          setPdfSelected(new Set());
+        }
+        return;
+      }
+      setPdfPreview(result.metrics);
+      setPdfSelected(new Set(result.metrics.map((m: Metric) => m.id)));
     } catch (err) { setPdfError(`Failed to parse PDF: ${err instanceof Error ? err.message : 'An unexpected error occurred'}`); }
     finally { setImporting(false); }
     e.target.value = '';
@@ -74,11 +90,11 @@ export default function MetricsPage() {
   };
 
   const togglePdfMetric = (id: string) => {
-    setPdfSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setPdfSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   };
 
   const toggleSelect = (id: string) => {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   };
 
   const deleteSelected = () => {
@@ -124,8 +140,8 @@ export default function MetricsPage() {
         Import your GSD Scorecard PDF to automatically extract CPH, AHT, CSAT, Case ARR, and other metrics. You can also add metrics manually. The scorecard view mirrors your GSD dashboard. Use "Clear All" to start fresh before importing a new PDF.
       </PageTip>
 
-      {/* GSD Scorecard Visual Display */}
-      <GSDScorecard metrics={state.metrics} />
+      {/* Performance evolution over the reporting period (weekly trend + monthly status) */}
+      <MetricEvolution metrics={state.metrics} />
 
       {/* Toggle raw data table */}
       {state.metrics.length > 0 && (
@@ -202,7 +218,7 @@ export default function MetricsPage() {
                 <TableRow>
                   <TableCell padding="checkbox">
                     <Checkbox checked={pdfPreview?.length === pdfSelected.size}
-                      onChange={() => { pdfPreview?.length === pdfSelected.size ? setPdfSelected(new Set()) : setPdfSelected(new Set(pdfPreview?.map((m: Metric) => m.id))); }} />
+                      onChange={() => { if (pdfPreview?.length === pdfSelected.size) setPdfSelected(new Set()); else setPdfSelected(new Set(pdfPreview?.map((m: Metric) => m.id))); }} />
                   </TableCell>
                   <TableCell>Type</TableCell><TableCell>Value</TableCell><TableCell>Channel</TableCell><TableCell>Notes</TableCell>
                 </TableRow>
@@ -221,6 +237,24 @@ export default function MetricsPage() {
             </Table>
           </TableContainer>
           <Typography variant="body2" sx={{ mt: 1 }}>{pdfSelected.size} of {pdfPreview?.length} selected</Typography>
+          {pdfDiagnostics && (
+            <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Import summary: {pdfDiagnostics.found.length} KPIs found
+                {pdfDiagnostics.missing.length > 0 && ` · ${pdfDiagnostics.missing.length} skipped`}
+              </Typography>
+              {pdfDiagnostics.missing.length > 0 && (
+                <Typography variant="caption" component="div" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                  Skipped: {pdfDiagnostics.missing.map(m => `${m.label} (${m.reason})`).join(', ')}
+                </Typography>
+              )}
+              {pdfDiagnostics.warnings.length > 0 && (
+                <Typography variant="caption" component="div" sx={{ mt: 0.5, color: 'warning.main' }}>
+                  {pdfDiagnostics.warnings.join('; ')}
+                </Typography>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPdfPreview(null)}>Cancel</Button>

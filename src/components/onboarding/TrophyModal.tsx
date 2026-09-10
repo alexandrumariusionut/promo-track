@@ -3,8 +3,8 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, 
 import { EmojiEvents } from '@mui/icons-material';
 import confetti from 'canvas-confetti';
 import { useOnboarding } from '../../context/OnboardingContext';
-
-const STORAGE_KEY = 'promo-track-trophy-shown';
+import { getTrophyShownKey } from '../../store/storage';
+import { prefersReducedMotion } from '../../utils/motion';
 
 export default function TrophyModal() {
   const { stage } = useOnboarding();
@@ -12,11 +12,17 @@ export default function TrophyModal() {
 
   useEffect(() => {
     if (stage < 3) return;
-    if (localStorage.getItem(STORAGE_KEY) === 'true') return;
+    if (localStorage.getItem(getTrophyShownKey()) === 'true') return;
 
-    setOpen(true);
-    localStorage.setItem(STORAGE_KEY, 'true');
-    confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+    localStorage.setItem(getTrophyShownKey(), 'true');
+    // Defer to the next frame so the state update is not synchronous within the effect
+    const frame = requestAnimationFrame(() => {
+      setOpen(true);
+      if (!prefersReducedMotion()) {
+        confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [stage]);
 
   return (

@@ -2,17 +2,20 @@
   "name": "userdata",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "start": "node local-server.mjs",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node --import ../local/register-fake-dynamo.mjs local-server.mjs",
+    "test": "cd ../.. && npx vitest run backend/userdata"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "description": "User data persistence backend for Promo Track",
   "dependencies": {
+    "aws-jwt-verify": "^4.0.1"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1097.0",
+    "@aws-sdk/lib-dynamodb": "^3.1097.0",
     "cors": "^2.8.6",
     "express": "^5.2.1"
-  }
+  },
+  "private": true
 }

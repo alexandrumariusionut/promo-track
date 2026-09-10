@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Alert, AlertTitle, IconButton, Collapse } from '@mui/material';
 import { Close, Lightbulb } from '@mui/icons-material';
-
-const DISMISSED_KEY = 'promo-track-dismissed-tips';
+import { getDismissedTipsKey } from '../store/storage';
 
 function getDismissed(): string[] {
-  try { return JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]'); } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(getDismissedTipsKey()) || '[]'); } catch { return []; }
 }
 
 export default function PageTip({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
@@ -14,7 +13,7 @@ export default function PageTip({ id, title, children }: { id: string; title: st
   const dismiss = () => {
     setVisible(false);
     const d = getDismissed();
-    if (!d.includes(id)) localStorage.setItem(DISMISSED_KEY, JSON.stringify([...d, id]));
+    if (!d.includes(id)) localStorage.setItem(getDismissedTipsKey(), JSON.stringify([...d, id]));
   };
 
   return (

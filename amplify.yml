@@ -4,24 +4,44 @@ frontend:
     preBuild:
       commands:
         - npm ci
-        - npm audit --audit-level=high || true
+        - npm audit --omit=dev --audit-level=high
+        - npm run lint
+        - npm test
     build:
       commands:
         - npm run build
   artifacts:
-    baseDirectory: dist
+    baseDirectory: app
     files:
       - '**/*'
   cache:
     paths:
       - node_modules/**/*
   customHeaders:
+    - pattern: 'index.html'
+      headers:
+        - key: 'Cache-Control'
+          value: 'no-cache, no-store, must-revalidate'
+        - key: 'Content-Security-Policy'
+          value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://midway-auth.amazon.com https://706rf9fx5c.execute-api.eu-west-1.amazonaws.com https://1jvjxaiuig.execute-api.eu-west-1.amazonaws.com https://t8b50k0lwh.execute-api.eu-west-1.amazonaws.com; worker-src 'self' blob:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+        - key: 'X-Content-Type-Options'
+          value: 'nosniff'
+        - key: 'X-Frame-Options'
+          value: 'DENY'
+        - key: 'Referrer-Policy'
+          value: 'strict-origin-when-cross-origin'
+        - key: 'Permissions-Policy'
+          value: 'camera=(), microphone=(), geolocation=()'
+    - pattern: 'assets/**'
+      headers:
+        - key: 'Cache-Control'
+          value: 'public, max-age=31536000, immutable'
+        - key: 'X-Content-Type-Options'
+          value: 'nosniff'
     - pattern: '**/*'
       headers:
         - key: 'Cache-Control'
           value: 'public, max-age=3600'
-        - key: 'Content-Security-Policy'
-          value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://localhost:11434 https://*.amazonaws.com; worker-src 'self' blob:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'"
         - key: 'X-Content-Type-Options'
           value: 'nosniff'
         - key: 'X-Frame-Options'

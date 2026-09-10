@@ -1,0 +1,53 @@
+{
+  "appName": "promo-track",
+  "displayName": "Promo Track",
+  "description": "Promotion portfolio builder for Amazon employees",
+  "bindleId": "amzn1.bindle.resource.p35xcahiumtgmx2r4nwq",
+  "jobCategories": [],
+  "headers": [
+    {
+      "name": "Content-Security-Policy",
+      "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://midway-auth.amazon.com https://706rf9fx5c.execute-api.eu-west-1.amazonaws.com https://1jvjxaiuig.execute-api.eu-west-1.amazonaws.com https://t8b50k0lwh.execute-api.eu-west-1.amazonaws.com; worker-src 'self' blob:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    },
+    {
+      "name": "X-Content-Type-Options",
+      "value": "nosniff"
+    },
+    {
+      "name": "X-Frame-Options",
+      "value": "DENY"
+    },
+    {
+      "name": "Referrer-Policy",
+      "value": "strict-origin-when-cross-origin"
+    },
+    {
+      "name": "Permissions-Policy",
+      "value": "camera=(), microphone=(), geolocation=()"
+    }
+  ],
+  "content-security-policy": {
+    "style-src": [
+      "'unsafe-inline'"
+    ],
+    "connect-src": [
+      "midway-auth.amazon.com",
+      "706rf9fx5c.execute-api.eu-west-1.amazonaws.com",
+      "1jvjxaiuig.execute-api.eu-west-1.amazonaws.com",
+      "t8b50k0lwh.execute-api.eu-west-1.amazonaws.com"
+    ],
+    "img-src": [
+      "data:",
+      "blob:"
+    ],
+    "worker-src": [
+      "blob:"
+    ],
+    "frame-src": [
+      "'none'"
+    ],
+    "object-src": [
+      "'none'"
+    ]
+  }
+}

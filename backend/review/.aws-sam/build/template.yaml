@@ -19,13 +19,79 @@ Resources:
       StageName: prod
       CorsConfiguration:
         AllowOrigins:
-        - '*'
+        - https://promo-track.harmony.a2z.com
+        - https://promo-track.beta.harmony.a2z.com
+        - http://localhost:5173
         AllowMethods:
         - GET
         - POST
         - OPTIONS
         AllowHeaders:
+        - Authorization
         - Content-Type
+      Auth:
+        DefaultAuthorizer: MidwayAuth
+        Authorizers:
+          MidwayAuth:
+            FunctionArn:
+              Fn::GetAtt:
+              - MidwayAuthorizerFunction
+              - Arn
+            FunctionInvokeRole:
+              Fn::GetAtt:
+              - MidwayAuthorizerRole
+              - Arn
+            Identity:
+              Headers:
+              - Authorization
+            AuthorizerPayloadFormatVersion: '2.0'
+            EnableSimpleResponses: false
+  MidwayAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+        - authorizer.mjs
+        External:
+        - '@aws-sdk/*'
+        Format: esm
+        Minify: false
+        OutExtension:
+        - .js=.mjs
+        Target: es2022
+      SamResourceId: MidwayAuthorizerFunction
+    Properties:
+      Handler: authorizer.handler
+      CodeUri: MidwayAuthorizerFunction
+      Timeout: 5
+      MemorySize: 128
+      Environment:
+        Variables:
+          ISSUER: https://midway-auth.amazon.com
+          JWKS_URI: https://midway-auth.amazon.com/jwks.json
+          AUDIENCES: promo-track.harmony.a2z.com,promo-track.beta.harmony.a2z.com
+  MidwayAuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: apigateway.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: InvokeAuthorizerLambda
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource:
+              Fn::GetAtt:
+              - MidwayAuthorizerFunction
+              - Arn
   ReviewsTable:
     Type: AWS::DynamoDB::Table
     Properties:

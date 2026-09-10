@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Snackbar, Alert } from '@mui/material';
 
 let globalSetError: ((message: string | null) => void) | null = null;
@@ -9,7 +9,10 @@ export function showError(message: string) {
 
 export function ErrorSnackbar() {
   const [message, setMessage] = useState<string | null>(null);
-  globalSetError = setMessage;
+  useEffect(() => {
+    globalSetError = setMessage;
+    return () => { globalSetError = null; };
+  }, []);
 
   return (
     <Snackbar open={!!message} autoHideDuration={4000} onClose={() => setMessage(null)}

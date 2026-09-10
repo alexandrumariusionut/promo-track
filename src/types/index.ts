@@ -43,6 +43,11 @@ export interface ReviewComment {
   reply?: string;
 }
 
+export interface AISuggestedDimension {
+  id: string;
+  justification: string;
+}
+
 export interface STAREntry {
   id: string;
   title: string;
@@ -56,6 +61,9 @@ export interface STAREntry {
   impactLevel: 'Low' | 'Medium' | 'High' | 'Critical';
   evidenceLinks: string[];
   levelDimension?: string;
+  dimensions?: string[];
+  themes?: string[];
+  aiSuggestedDimensions?: AISuggestedDimension[];
   customFields?: CustomField[];
   hiddenFields?: string[];
   reviewComments?: ReviewComment[];

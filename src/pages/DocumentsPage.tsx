@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Box, Typography, Button, Paper, Grid, Card, CardContent, CardActions, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Typography, Button, Grid, Card, CardContent, CardActions, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { Description, Download, Visibility } from '@mui/icons-material';
 import DOMPurify from 'dompurify';
 import { useApp } from '../store/AppContext';
-import { generateDocx } from '../utils/docExport';
 import { generatePreviewHTML } from '../utils/docPreview';
 import PageTip from '../components/PageTip';
 
@@ -12,7 +11,11 @@ export default function DocumentsPage() {
   const [snack, setSnack] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const handleDocx = async () => { await generateDocx(state); setSnack('Word document generated!'); };
+  const handleDocx = async () => {
+    const { generateDocx } = await import('../utils/docExport');
+    await generateDocx(state);
+    setSnack('Word document generated!');
+  };
 
   return (
     <Box>

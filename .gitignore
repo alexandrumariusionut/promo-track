@@ -28,7 +28,7 @@ public/walkthrough.mov
 
 # Internal tooling
 .sisyphus/
-.harmony/
+# .harmony/ is tracked: it holds the Harmony CSP/bindle config, no secrets
 *.ntvs*
 *.njsproj
 *.sln
@@ -37,3 +37,17 @@ public/walkthrough.mov
 # Reference files
 *.pdf
 *.docx
+
+# SAM / test artifacts
+.aws-sam/
+coverage/
+
+# Personal files never to be committed
+Shout-Out/
+*.eml
+one pager.png
+
+# Local environment
+.env
+.env.local
+.env.*.local

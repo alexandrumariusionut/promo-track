@@ -1,8 +1,21 @@
-import { AppState, PortfolioFile, CURRENT_VERSION, APP_VERSION, Metric } from '../types';
+import { AppState, PortfolioFile, CURRENT_VERSION, APP_VERSION, Metric, STAREntry } from '../types';
 import { getDefaultState } from '../store/storage';
 
 const MAX_IMPORT_SIZE = 5 * 1024 * 1024; // 5MB
-const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** Shape of older exports that used the `starr` key. */
+type LegacyState = Partial<AppState> & { starr?: STAREntry[] };
+
+/**
+ * JSON.parse reviver that rejects prototype-pollution keys wherever they occur.
+ * Unlike a substring scan this does not reject legitimate text such as
+ * "the constructor was on site".
+ */
+function rejectDangerousKeys(key: string, value: unknown): unknown {
+  if (DANGEROUS_KEYS.has(key)) throw new Error('Invalid portfolio file: contains forbidden keys');
+  return value;
+}
 
 export function exportSession(state: AppState): void {
   const portfolio: PortfolioFile = {
@@ -35,21 +48,21 @@ export async function importSession(file: File): Promise<AppState> {
     throw new Error('This file was encrypted with an older version and cannot be imported. Please re-export from the original app.');
   }
 
-  if (DANGEROUS_KEYS.some(k => raw.includes(`"${k}"`))) {
-    throw new Error('Invalid portfolio file: contains forbidden keys');
-  }
+  if (!raw.trim()) throw new Error('Invalid portfolio file: empty');
 
-  const parsed = JSON.parse(raw);
-  const data: AppState = parsed.data ? parsed.data : parsed;
+  const parsed: unknown = JSON.parse(raw, rejectDangerousKeys);
+  if (typeof parsed !== 'object' || parsed === null) throw new Error('Invalid portfolio file: not an object');
+  const wrapper = parsed as { data?: LegacyState } & LegacyState;
+  const data: LegacyState = wrapper.data ? wrapper.data : wrapper;
 
-  if (!data.profile || (!Array.isArray(data.star) && !Array.isArray((data as any).starr))) {
+  if (!data.profile || (!Array.isArray(data.star) && !Array.isArray(data.starr))) {
     throw new Error('Invalid portfolio file: missing required sections');
   }
 
   // Migrate old 'starr' key to 'star'
-  if (!data.star && Array.isArray((data as any).starr)) {
-    data.star = (data as any).starr;
-    delete (data as any).starr;
+  if (!data.star && Array.isArray(data.starr)) {
+    data.star = data.starr;
+    delete data.starr;
   }
 
   const defaults = getDefaultState();

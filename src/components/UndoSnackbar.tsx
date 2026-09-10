@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Snackbar, Alert, Button } from '@mui/material';
 
 interface UndoState {
@@ -14,7 +14,10 @@ export function showUndo(message: string, undo: () => void) {
 
 export function UndoSnackbar() {
   const [state, setState] = useState<UndoState | null>(null);
-  globalSetUndo = setState;
+  useEffect(() => {
+    globalSetUndo = setState;
+    return () => { globalSetUndo = null; };
+  }, []);
 
   const handleUndo = () => { state?.undo(); setState(null); };
 

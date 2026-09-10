@@ -1,17 +1,21 @@
 {
   "name": "review",
   "version": "1.0.0",
-  "description": "Serverless backend for the web-based review flow. Managers receive a link, review STAR entries in-browser, and submit comments — no file exchange needed.",
-  "main": "index.js",
+  "description": "Serverless backend for the web-based review flow. Managers receive a link, review STAR entries in-browser, and submit comments \u2014 no file exchange needed.",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node --import ../local/register-fake-dynamo.mjs local-server.mjs",
+    "test": "cd ../.. && npx vitest run backend/review"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "dependencies": {
+    "aws-jwt-verify": "^4.0.1"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1097.0",
+    "@aws-sdk/lib-dynamodb": "^3.1097.0",
     "cors": "^2.8.6",
     "express": "^5.2.1"
-  }
+  },
+  "private": true
 }
