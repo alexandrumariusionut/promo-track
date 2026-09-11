@@ -1,7 +1,7 @@
 # PromoTrack — Promotion Portfolio Builder
 
 🧪 **Beta (current):** https://promo-track.beta.harmony.a2z.com  
-🚀 **Prod:** https://promo-track.harmony.a2z.com — not yet deployed
+🚀 **Prod:** https://promo-track.harmony.a2z.com — live (2026-09-11)
 
 A browser-based tool for Amazon employees to build, track and export promotion portfolios. You sign in with Midway; your identity is verified server-side and your portfolio is stored per alias both in your browser and in the cloud.
 

@@ -8,7 +8,7 @@ This document gives an AI assistant enough context to modify the codebase withou
 - React 19 + TypeScript 5.9 (strict) + Vite 8 (rolldown) + MUI 7. Icons are imported **per path** (`@mui/icons-material/Foo`) — the barrel import is lint-forbidden.
 - State: one `AppContext` (`useReducer`, 14 actions) with memoised value; persisted to localStorage per alias and to the cloud with optimistic concurrency.
 - Identity: Harmony `window.harmony.user.lookup()` for the alias; Midway `id_token` (in-memory only) as Bearer for the API. On the dev server, `VITE_DEV_USER` supplies a fake alias and the `X-Dev-Alias` header for the local harness.
-- Backend: **one** SAM stack (`backend/template.yaml`), one HTTP API, one Midway authorizer, 7 handler functions, 2 DynamoDB tables. Deployed as `promo-track-backend-beta`; prod still runs the two legacy stacks (see `Documents/DEPLOYMENT.md`).
+- Backend: **one** SAM stack (`backend/template.yaml`), one HTTP API, one Midway authorizer, 7 handler functions, 2 DynamoDB tables. Deployed as `promo-track-backend-beta` (API `g093baotu0`) and `promo-track-backend` (prod, API `zk0njdczql`, `-v2` tables).
 - Config: API URLs come from `src/config.ts` (`VITE_*` at build time). No runtime override exists.
 - Tests: 266 (Vitest; jsdom for `src/**`, node for `backend/tests/**`). Component tests use React Testing Library.
 - No encryption / lock screen / shout-outs remain in the code. `session.ts` rejects old `PROMO-TRACK-ENC:` files; `storage.ts` deletes encryption-era keys on migration.
@@ -113,7 +113,7 @@ Errors: 500 bodies are always `{"error":"Internal server error"}`; details go to
 
 ## AI integration
 - Default provider Bedrock (Claude Haiku 4.5) via `AI_API_URL` = `<USERDATA_API_URL>/ai`, i.e. `backend/src/ai/chat.mjs` behind the Midway authorizer; requests go through `apiFetch` (Bearer). Local: the harness fakes Bedrock; Ollama via the Vite `/api/ai` proxy remains possible. Endpoint override limited to the build endpoint, `localhost`, `/api/*`.
-- The legacy standalone proxy `706rf9fx5c` is no longer referenced by the app and can be deleted once prod is on the unified stack.
+- The legacy standalone proxy `706rf9fx5c` / Lambda `promo-track-bedrock` is unreferenced and awaits deletion (see `backend/README.md`).
 - All user text goes through `asData()` (delimiter stripping, length caps) inside `<<<USER_DATA … USER_DATA>>>` blocks; every system prompt carries `INJECTION_DEFENSE`.
 - `parseSuggestDimensionsResponse(raw, allowedIds)` tolerates fences/prose, drops unknown ids, caps 3 suggestions/400 chars; then `validateSuggestions()` requires a verbatim ≥20-char quote.
 - Rate limit 2 s between calls (`chat`, `chatMessages`).
@@ -159,6 +159,6 @@ Removed: `promo-track-review-api`, `promo-track-userdata-api`, all `*-encrypted/
 Run: `npm test` · `npm run test:backend` · `npm run test:coverage`. Browser E2E scripts used for the September verification live outside the repo (Playwright + installed Chrome against `npm run dev` + `npm run backend:start`).
 
 ## Open items
-1. Prod cut-over to the unified stack (`backend/README.md`).
+1. Teardown of legacy stacks and the old proxy (`backend/README.md`, destructive).
 2. `git filter-repo` to purge `Shout-Out/*.eml`, `one pager.png`, `.aws-sam/` from history.
 3. Deferred refactors: STAR editor as drawer/page, split `STARRFormDialog`/`DimensionCoveragePanel`/`GuidelinesPage`, selector hooks over `AppContext`, tighter `Metric` types, Vite stable, anonymise GSD test fixture.

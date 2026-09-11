@@ -11,8 +11,8 @@
 
 | Stage | Frontend (Harmony) | Backend stack | API base URL | Tables |
 |---|---|---|---|---|
-| **beta** | `promo-track.beta.harmony.a2z.com` — Harmony version **3.3.1** (deployed 2026-09-10) | `promo-track-backend-beta` (unified stack) | `https://g093baotu0.execute-api.eu-west-1.amazonaws.com/prod` | `promo-track-users-beta`, `promo-track-reviews-beta` |
-| **prod** | `promo-track.harmony.a2z.com` — **never deployed** (root returns 404) | legacy `promo-track-userdata` + `promo-track-review` (still running, unchanged since 2026-07-29) | `t8b50k0lwh…` (userdata), `1jvjxaiuig…` (review) | `promo-track-users`, `promo-track-reviews` |
+| **beta** | `promo-track.beta.harmony.a2z.com` — Harmony version **3.3.2** (deployed 2026-09-10) | `promo-track-backend-beta` (unified stack) | `https://g093baotu0.execute-api.eu-west-1.amazonaws.com/prod` | `promo-track-users-beta`, `promo-track-reviews-beta` |
+| **prod** | `promo-track.harmony.a2z.com` — **live**, Harmony version 5.3.0 (2026-09-11) | `promo-track-backend` → API `zk0njdczql`, tables `promo-track-users-v2` / `promo-track-reviews-v2` (data copied from legacy tables) | ✅ |
 
 The prod cut-over to the unified stack is documented in `backend/README.md` and has **not** been executed yet.
 
@@ -50,7 +50,7 @@ The prod cut-over to the unified stack is documented in `backend/README.md` and 
      └────────────────────────────────────────────────┘
 
      ┌────────────────────────────────────────────────┐
-     │   AI proxy 706rf9fx5c (Bedrock, Claude Haiku)  │
+     │   /ai/chat → Bedrock (same API, Midway auth)   │
      │   NOT in this repo · NO Midway auth · OPEN item│
      └────────────────────────────────────────────────┘
 ```
@@ -77,7 +77,7 @@ npm run build-harmony-app        # production mode (reads .env.production if pre
 
 ```bash
 harmony app deploy -s beta
-harmony app deploy -s prod       # not yet done — see "Prod cut-over" below
+harmony app deploy -s prod       # needs an interactive TTY; Harmony refuses prod in non-interactive mode
 harmony app display-versions -s beta
 ```
 
@@ -117,11 +117,20 @@ Stage differences: beta uses `-beta` table suffixes, `promo-track.beta.harmony.a
 
 `promo-track-userdata` and `promo-track-review` still serve prod. Their templates were removed from the repo in commit `8477102`; the last deployed version (2026-07-29) runs `nodejs20.x`, whose **updates have been blocked by Lambda since 2026-07-01**. They cannot be modified, only deleted. Do not run `sam delete` on them before completing the cut-over — both tables carry `DeletionPolicy: Retain`, but verify with `aws cloudformation get-template` first.
 
-### Prod cut-over (not yet executed)
+### Prod cut-over (executed 2026-09-11)
 
-Follow `backend/README.md` § "One-time production migration": delete the legacy stacks (tables are retained), import `promo-track-reviews` and `promo-track-users` into a new `promo-track-backend` stack with an IMPORT change set, deploy the rest of the stack, then point the frontend build (`.env.production`) and `connect-src` at the new `ApiUrl` and deploy Harmony prod.
+The legacy prod stacks had **no** `DeletionPolicy: Retain` on their tables, so the import-by-deletion
+runbook was abandoned. What was done instead (details and teardown commands in `backend/README.md`):
 
----
+1. On-demand backup `promo-track-users-pre-cutover-20260911` of the legacy users table (5 users; reviews table empty).
+2. `sam deploy --config-env prod` created `promo-track-backend` with fresh `-v2` tables (Retain, PITR, deletion protection).
+3. Items copied with `batch-write-item`, verified identical by full scan.
+4. Prod authorizer audience restricted to `promo-track.harmony.a2z.com`; CORS origin prod only.
+5. `.env.production` → `zk0njdczql`; Harmony CSP `connect-src` = midway + `g093baotu0` (beta) + `zk0njdczql` (prod); `harmony app deploy -s prod` → version 5.3.0.
+
+**Remaining teardown (destructive, do deliberately):** delete legacy stacks `promo-track-review` and
+`promo-track-userdata` (this deletes their tables — data already lives in `-v2` + backup), the standalone
+proxy API `706rf9fx5c` and Lambda `promo-track-bedrock`. Commands in `backend/README.md`.
 
 ## Verification checklist after any deploy
 

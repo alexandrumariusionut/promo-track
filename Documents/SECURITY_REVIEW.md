@@ -1,9 +1,9 @@
 # PromoTrack Security Posture Document
 
-**Version:** 9.0  
-**Date:** 2026-09-10  
-**Application Version:** 1.3.0 (Harmony beta 3.3.1, backend stack `promo-track-backend-beta`)  
-**Overall Risk Rating:** LOW (one open MEDIUM: unauthenticated AI proxy)  
+**Version:** 9.1  
+**Date:** 2026-09-11  
+**Application Version:** 1.3.0 (Harmony beta 3.3.2, prod 5.3.0; stacks `promo-track-backend-beta`, `promo-track-backend`)  
+**Overall Risk Rating:** LOW  
 **Last reviewed:** 2026-09-10
 
 ## 1. Executive Summary
@@ -183,7 +183,7 @@ Client-side encryption (AES-256-GCM, passphrase lock screen) was **removed befor
 
 | # | Issue | Severity | Status | Notes |
 |---|-------|----------|--------|-------|
-| A | AI proxy (`706rf9fx5c`) unauthenticated | MEDIUM | **Open** | Backend not in this repo. Frontend now only allows the build-configured endpoint (or localhost). Next: bring the proxy's SAM template into `backend/ai/`, put it behind the shared Midway authorizer, switch `ai.ts` to `apiFetch`. |
+| A | AI proxy (`706rf9fx5c`) unauthenticated | MEDIUM | **Resolved 2026-09-11** — replaced by `/ai/chat` behind the Midway authorizer (model allowlist, size caps, 429 mapping); old API/Lambda unreferenced, deletion pending |
 | B | Review session URLs rely on UUID secrecy when no reviewer allowlist is given | LOW | Mitigated | Owner can now pass `reviewerAliases` to restrict access, and can revoke via `DELETE /reviews/{id}`. Unrestricted sessions still work for backwards compatibility. |
 | C | Vite 8 beta pinned | LOW | Accepted | Pre-release; `npm audit --audit-level=high` now fails the Amplify build instead of being ignored. |
 | D | No IAM leading-key enforcement on DynamoDB | LOW | Accepted | App-enforced alias binding via authorizer context. |
@@ -294,9 +294,9 @@ Release verification (2026-09-10, beta): browser E2E against the local harness (
 
 ## 11. Future Recommendations
 
-1. **AI Proxy Authentication:** bring the Bedrock proxy (`706rf9fx5c`) into `backend/` behind the shared Midway authorizer and route `ai.ts` through `apiFetch` — highest remaining priority
+1. **Legacy teardown:** delete the unauthenticated proxy `706rf9fx5c` / `promo-track-bedrock` and the two legacy `nodejs20.x` stacks (their tables lack Retain; data is in the `-v2` tables + on-demand backup)
 2. **Git history purge:** `git filter-repo` for `Shout-Out/*.eml`, `one pager.png`, `.aws-sam/` before the repo is shared more widely
-3. **Prod cut-over:** move prod to the unified stack (runbook in `backend/README.md`), then delete the legacy `nodejs20.x` stacks
+3. **Prod hardening follow-ups:** subscribe `AlarmEmail` on the prod stack; consider a WAF rate limit on `/ai/chat`
 4. **IAM Leading-Key Condition:** DynamoDB condition key for defence-in-depth
 5. **Stabilize Vite:** move off Vite 8 beta once stable
 6. **Anonymise test fixture:** `src/utils/__tests__/fixtures/gsd1-*` contains a real scorecard extract

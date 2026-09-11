@@ -8,7 +8,7 @@
 
 PromoTrack is a web application that lets employees build, manage and export their promotion portfolio in one place. It replaces the manual assembly of STAR entries, performance metrics and narrative sections across disconnected documents. Users sign in with Midway; the portfolio is stored per alias in the browser and in a serverless backend (DynamoDB) with conflict-safe sync, so it follows the user across devices without silent overwrites. AI coaching (Amazon Bedrock, Claude Haiku 4.5) is advisory only: every suggestion must quote the user's own words and is validated against the allowed role guidelines before it is shown. Portfolios export as a formatted DOCX and a portable JSON backup, and can be shared read-only with named reviewers through a revocable link.
 
-**Deployment:** Harmony platform — `promo-track.beta.harmony.a2z.com` (beta, live, version 3.3.1) and `promo-track.harmony.a2z.com` (prod, pending cut-over). Backend: one AWS SAM stack per stage (Lambda + API Gateway HTTP API + DynamoDB) in eu-west-1, Midway-JWT authorised.
+**Deployment:** Harmony platform — `promo-track.beta.harmony.a2z.com` (beta, live) and `promo-track.harmony.a2z.com` (prod, live since 2026-09-11). Backend: one AWS SAM stack per stage (Lambda + API Gateway HTTP API + DynamoDB) in eu-west-1, Midway-JWT authorised.
 
 **Stakeholders/Customers:**
 - Individual contributors preparing promotion portfolios (primary users)
@@ -45,7 +45,7 @@ PromoTrack is a web application that lets employees build, manage and export the
 - pdfjs-dist, docx, DOMPurify
 - AWS SAM: API Gateway HTTP API, Lambda (Node.js 24, arm64), DynamoDB (PITR, Retain), CloudWatch alarms, X-Ray
 - aws-jwt-verify (Midway RS256 JWT), Harmony build tools, GitHub Actions (OIDC)
-- Amazon Bedrock via a Lambda proxy (currently outside this repo)
+- Amazon Bedrock via `/ai/chat` on the unified API (Midway-authorised, model allowlist)
 
 **Data stores:**
 - DynamoDB `users` (one record per alias, version counter for optimistic concurrency) and `reviews` (7-day TTL, owner and reviewer allowlist)
@@ -55,10 +55,10 @@ PromoTrack is a web application that lets employees build, manage and export the
 
 **Personnel:** 1 developer; manager review for requirements; security review of the September audit
 
-**Backfills/modifications:** Prod cut-over imports the two existing DynamoDB tables into the unified stack — no data is copied or transformed.
+**Backfills/modifications:** Prod cut-over copied the 5 existing user records into the new stack's tables unchanged (verified identical); legacy stacks remain until torn down.
 
 **Open questions:**
-1. Ownership of the AI proxy (`706rf9fx5c`): bring it into this repo and behind Midway, or retire it in favour of a per-user Bedrock call?
+1. When to delete the legacy stacks and the old unauthenticated AI proxy (data is already migrated and backed up)?
 2. Should the DOCX export be standardised across the organisation or remain team-configurable?
 3. Appetite for a manager-facing read-only portfolio view beyond the review link?
 
@@ -81,8 +81,9 @@ PromoTrack is a web application that lets employees build, manage and export the
 | Review restrictions (reviewer allowlist, revoke); prompt-injection hardening | 2026-09-10 | ✅ |
 | Unified backend stack + CI; beta deployed (Harmony 3.3.1) | 2026-09-10 | ✅ |
 | Design system tokens, dashboard redesign, component tests | 2026-09-10 | ✅ |
-| Prod cut-over to unified stack + first prod Harmony deploy | TBD | 🔲 |
-| AI proxy behind Midway | TBD | 🔲 |
+| AI proxy behind Midway (`/ai/chat` on the unified API) | 2026-09-11 | ✅ |
+| Prod cut-over to unified stack + first prod Harmony deploy (5.3.0) | 2026-09-11 | ✅ |
+| Legacy stack / old proxy teardown | TBD | 🔲 |
 | User feedback & iteration | Ongoing | 🔲 |
 
 **Expected impact:** preparation time from days to hours; higher Role Guideline coverage in submissions; real-time readiness visibility for employees and managers.
@@ -91,7 +92,7 @@ PromoTrack is a web application that lets employees build, manage and export the
 
 **Summary of design review:**
 - Architecture: SPA on Harmony + one serverless stack per stage; zero idle cost; beta and prod fully isolated (tables, origins, audiences)
-- Security: Midway JWT on every API call with alias binding; review links restricted and revocable; strict CSP; DOMPurify; AI input wrapped as inert data and output validated; tables retained, PITR, alarms — overall risk **LOW**, one open MEDIUM (unauthenticated AI proxy)
+- Security: Midway JWT on every API call with alias binding; review links restricted and revocable; strict CSP; DOMPurify; AI input wrapped as inert data and output validated; tables retained, PITR, alarms — overall risk **LOW** (AI proxy now behind Midway; legacy unauthenticated proxy awaiting deletion)
 - Reliability: optimistic concurrency prevents cross-device overwrites; state normalisation on load; error boundary with data export
-- Quality: 253 automated tests (unit + component + backend), lint/type gates in CI, browser E2E used for release verification
+- Quality: 266 automated tests (unit + component + backend), lint/type gates in CI, browser E2E used for release verification
 - Cost: ≈ $3/month for the serverless backend; the legacy Ollama EC2 instance (~$122/month) is unused and should be terminated
