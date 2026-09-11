@@ -11,12 +11,16 @@ Single AWS SAM stack (`template.yaml`) exposing one Midway-authorised HTTP API:
 | `GET /reviews/{id}/status` | `src/review/status.mjs` | reviews |
 | `GET /userdata/{alias}` | `src/userdata/get.mjs` | users |
 | `PUT /userdata/{alias}` | `src/userdata/save.mjs` (`If-Match` → 409) | users |
+| `POST /ai/chat` | `src/ai/chat.mjs` — Bedrock Converse, Ollama-compatible body, model allowlist, size caps | — |
+| `GET /ai/tags` | `src/ai/tags.mjs` — allowlisted models | — |
 
 `src/authorizer.mjs` verifies the Midway `id_token` (RS256, issuer, audience) and injects the
 verified alias into `requestContext.authorizer.lambda.alias`. Handlers never trust anything else
 for identity. Shared helpers live in `src/lib/http.mjs`.
 
 ## Local development
+
+The harness fakes DynamoDB **and** Bedrock. Set `LOCAL_BEDROCK=real` to call Bedrock with your AWS credentials.
 
 ```bash
 npm install

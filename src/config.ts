@@ -20,8 +20,13 @@ export const REVIEW_API_URL: string =
 export const USERDATA_API_URL: string =
   env.VITE_USERDATA_API_URL || 'https://t8b50k0lwh.execute-api.eu-west-1.amazonaws.com/prod';
 
+/**
+ * AI proxy. Lives on the same API as /reviews and /userdata (behind the Midway
+ * authorizer) so the default is derived from USERDATA_API_URL. In dev,
+ * VITE_AI_API_URL=/api/ai proxies to a local Ollama instead.
+ */
 export const AI_API_URL: string =
-  env.VITE_AI_API_URL || 'https://706rf9fx5c.execute-api.eu-west-1.amazonaws.com';
+  env.VITE_AI_API_URL || `${USERDATA_API_URL}/ai`;
 
 export const AI_DEFAULT_MODEL: string =
   env.VITE_AI_MODEL || 'eu.anthropic.claude-haiku-4-5-20251001-v1:0';

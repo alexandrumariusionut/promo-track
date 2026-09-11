@@ -10,7 +10,7 @@ This document gives an AI assistant enough context to modify the codebase withou
 - Identity: Harmony `window.harmony.user.lookup()` for the alias; Midway `id_token` (in-memory only) as Bearer for the API. On the dev server, `VITE_DEV_USER` supplies a fake alias and the `X-Dev-Alias` header for the local harness.
 - Backend: **one** SAM stack (`backend/template.yaml`), one HTTP API, one Midway authorizer, 7 handler functions, 2 DynamoDB tables. Deployed as `promo-track-backend-beta`; prod still runs the two legacy stacks (see `Documents/DEPLOYMENT.md`).
 - Config: API URLs come from `src/config.ts` (`VITE_*` at build time). No runtime override exists.
-- Tests: 253 (Vitest; jsdom for `src/**`, node for `backend/tests/**`). Component tests use React Testing Library.
+- Tests: 266 (Vitest; jsdom for `src/**`, node for `backend/tests/**`). Component tests use React Testing Library.
 - No encryption / lock screen / shout-outs remain in the code. `session.ts` rejects old `PROMO-TRACK-ENC:` files; `storage.ts` deletes encryption-era keys on migration.
 
 ## Directory structure
@@ -68,9 +68,10 @@ promo-track/
 │   ├── src/lib/http.mjs             # respond/error/serverError/callerAlias/parseJsonBody/assertOwner/canAccessReview/isExpired
 │   ├── src/review/{create,get,comments,status,revoke}.mjs
 │   ├── src/userdata/{get,save}.mjs
-│   ├── local/                       # dev harness: Express → real handlers; in-memory DynamoDB via module hook
+│   ├── src/ai/{chat,tags}.mjs        # Bedrock Converse behind Midway; Ollama-compatible contract
+│   ├── local/                       # dev harness: Express → real handlers; in-memory DynamoDB + fake Bedrock via module hook
 │   ├── local-server.mjs             # npm start → http://127.0.0.1:3001
-│   ├── tests/*.test.mjs             # vitest, 44 tests
+│   ├── tests/*.test.mjs             # vitest, 57 tests
 │   └── README.md                    # routes, local dev, prod cut-over runbook
 ├── .github/workflows/ci.yml         # audit, lint, tsc, tests, build, sam validate; OIDC beta deploy on main
 ├── .harmony/harmony-metadata.json   # CSP object + X-Content-Type-Options (only approved header)
@@ -106,10 +107,13 @@ Persistence:
 | `GET /reviews/{id}/status` | same | comments only when `status='reviewed'` |
 | `POST /reviews/{id}/comments` | same | per-entry merge `SET comments.#k = :v`; 4 KB/comment, ≤200 |
 | `DELETE /reviews/{id}` | owner only (condition expression) | revoke |
+| `POST /ai/chat` | any authenticated user | Ollama-shaped `{model, messages, stream}` → `{message:{content}}`; model allowlist (`AiAllowedModels`), ≤40 msgs / 60 KB, 1500 output tokens, 429 on throttling |
+| `GET /ai/tags` | any authenticated user | allowlisted models |
 Errors: 500 bodies are always `{"error":"Internal server error"}`; details go to structured logs. CORS is API-level only (handlers set no CORS headers).
 
 ## AI integration
-- Default provider Bedrock (Claude Haiku 4.5) via `AI_API_URL` (`706rf9fx5c` — **unauthenticated, not in repo, open item**); Ollama for local dev via the Vite `/api/ai` proxy. Endpoint override limited to the build endpoint, `localhost`, `/api/*`.
+- Default provider Bedrock (Claude Haiku 4.5) via `AI_API_URL` = `<USERDATA_API_URL>/ai`, i.e. `backend/src/ai/chat.mjs` behind the Midway authorizer; requests go through `apiFetch` (Bearer). Local: the harness fakes Bedrock; Ollama via the Vite `/api/ai` proxy remains possible. Endpoint override limited to the build endpoint, `localhost`, `/api/*`.
+- The legacy standalone proxy `706rf9fx5c` is no longer referenced by the app and can be deleted once prod is on the unified stack.
 - All user text goes through `asData()` (delimiter stripping, length caps) inside `<<<USER_DATA … USER_DATA>>>` blocks; every system prompt carries `INJECTION_DEFENSE`.
 - `parseSuggestDimensionsResponse(raw, allowedIds)` tolerates fences/prose, drops unknown ids, caps 3 suggestions/400 chars; then `validateSuggestions()` requires a verbatim ≥20-char quote.
 - Rate limit 2 s between calls (`chat`, `chatMessages`).
@@ -131,7 +135,7 @@ Per alias (`promo-track-<alias>:…`): `data`, `pending-review`, `review-retry-c
 Device-level: `promo-track-ai-config` (provider/model/endpoint — endpoint validated on read), `promo-track-onboarding`, `promo-track-theme`.  
 Removed: `promo-track-review-api`, `promo-track-userdata-api`, all `*-encrypted/pass-hash/lock-ts` keys.
 
-## Tests (253)
+## Tests (266)
 | File | Tests | Scope |
 |---|---|---|
 | src/utils/__tests__/pdfImportV2.test.ts | 43 | parser perturbation + golden |
@@ -147,6 +151,7 @@ Removed: `promo-track-review-api`, `promo-track-userdata-api`, all `*-encrypted/
 | src/components/__tests__/ShareReviewDialog.test.tsx | 4 | allowlist, create, revoke |
 | src/components/__tests__/Dashboard.test.tsx | 4 | first run, next step, links, debounced versioned save |
 | src/utils/__tests__/pdfImport.test.ts | 3 | wrapper |
+| backend/tests/ai.handlers.test.mjs | 13 | model allowlist, Converse mapping, limits, 429, no leakage |
 | backend/tests/review.handlers.test.mjs | 19 | access control, merge, revoke, no leakage |
 | backend/tests/userdata.handlers.test.mjs | 14 | ownership, If-Match/409, limits |
 | backend/tests/authorizer.test.mjs | 11 | allow/deny matrix, stage wildcard |
@@ -154,7 +159,6 @@ Removed: `promo-track-review-api`, `promo-track-userdata-api`, all `*-encrypted/
 Run: `npm test` · `npm run test:backend` · `npm run test:coverage`. Browser E2E scripts used for the September verification live outside the repo (Playwright + installed Chrome against `npm run dev` + `npm run backend:start`).
 
 ## Open items
-1. AI proxy behind Midway (needs its SAM template in `backend/`; then route `ai.ts` through `apiFetch`).
-2. Prod cut-over to the unified stack (`backend/README.md`).
-3. `git filter-repo` to purge `Shout-Out/*.eml`, `one pager.png`, `.aws-sam/` from history.
-4. Deferred refactors: STAR editor as drawer/page, split `STARRFormDialog`/`DimensionCoveragePanel`/`GuidelinesPage`, selector hooks over `AppContext`, tighter `Metric` types, Vite stable, anonymise GSD test fixture.
+1. Prod cut-over to the unified stack (`backend/README.md`).
+2. `git filter-repo` to purge `Shout-Out/*.eml`, `one pager.png`, `.aws-sam/` from history.
+3. Deferred refactors: STAR editor as drawer/page, split `STARRFormDialog`/`DimensionCoveragePanel`/`GuidelinesPage`, selector hooks over `AppContext`, tighter `Metric` types, Vite stable, anonymise GSD test fixture.

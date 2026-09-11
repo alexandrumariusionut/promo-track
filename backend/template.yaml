@@ -37,6 +37,16 @@ Parameters:
     Default: ""
     Description: See ReviewsTableName.
 
+  AiDefaultModel:
+    Type: String
+    Default: "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+    Description: Bedrock model (or cross-region inference profile) used when the client sends an unknown model.
+
+  AiAllowedModels:
+    Type: CommaDelimitedList
+    Default: "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+    Description: Models the /ai/chat route may invoke. Must include AiDefaultModel.
+
 Conditions:
   HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
   IsProd: !Equals [!Ref Stage, prod]
@@ -303,6 +313,48 @@ Resources:
               Action: [dynamodb:UpdateItem]
               Resource: !GetAtt UsersTable.Arn
 
+  # ─────────────────────────────── AI proxy ────────────────────────────────
+  # Replaces the standalone, unauthenticated Bedrock proxy. Same Midway
+  # authorizer as every other route; model allowlist + size caps in code.
+  AiChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: ai/chat.handler
+      CodeUri: src/
+      Timeout: 29            # HTTP API integration limit is 30 s
+      MemorySize: 256
+      Environment:
+        Variables:
+          DEFAULT_MODEL: !Ref AiDefaultModel
+          ALLOWED_MODELS: !Join [",", !Ref AiAllowedModels]
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/ai/chat", Method: POST }
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [bedrock:InvokeModel]
+              Resource:
+                # Cross-region inference profiles live in the account/region…
+                - !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/eu.anthropic.*
+                # …and fan out to the underlying foundation models in EU regions.
+                - arn:aws:bedrock:eu-*::foundation-model/anthropic.*
+
+  AiTagsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: ai/tags.handler
+      CodeUri: src/
+      Environment:
+        Variables:
+          DEFAULT_MODEL: !Ref AiDefaultModel
+          ALLOWED_MODELS: !Join [",", !Ref AiAllowedModels]
+      Events:
+        Api:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/ai/tags", Method: GET }
+
   # ───────────────────────────── Observability ─────────────────────────────
   AlarmTopic:
     Type: AWS::SNS::Topic
@@ -355,7 +407,7 @@ Resources:
 
 Outputs:
   ApiUrl:
-    Description: Base URL for both /reviews and /userdata routes
+    Description: Base URL for the /reviews, /userdata and /ai routes
     Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/prod"
   ReviewsTableName:
     Value: !Ref ReviewsTable
@@ -363,3 +415,6 @@ Outputs:
     Value: !Ref UsersTable
   AlarmTopicArn:
     Value: !Ref AlarmTopic
+  AiApiUrl:
+    Description: Value for VITE_AI_API_URL
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/prod/ai"

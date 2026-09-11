@@ -1,4 +1,5 @@
 import { AI_API_URL, AI_DEFAULT_MODEL } from '../config';
+import { apiFetch } from './apiFetch';
 
 export type AIProvider = 'ollama' | 'bedrock' | 'remote';
 
@@ -37,8 +38,9 @@ const DEFAULT_CONFIG: AIConfig = {
  * Endpoints a user may point the AI client at.
  * Remote endpoints are restricted to the one baked in at build time; the only
  * user-selectable alternatives are local development targets. This prevents a
- * tampered localStorage value from redirecting STAR narratives (and, once the
- * AI proxy is behind Midway, the Bearer token) to an arbitrary host.
+ * tampered localStorage value from redirecting STAR narratives and the Midway
+ * Bearer token (the AI route sits behind the same authorizer as the rest of
+ * the API) to an arbitrary host.
  */
 const ALLOWED_ENDPOINTS: RegExp[] = [
   /^\/api\//,                              // Vite dev proxy
@@ -85,7 +87,7 @@ export function saveAIConfig(config: Partial<AIConfig>): void {
 export async function checkConnection(): Promise<{ ok: boolean; models: string[] }> {
   try {
     const config = getAIConfig();
-    const res = await fetch(`${config.endpoint}/tags`, { signal: AbortSignal.timeout(10000) });
+    const res = await apiFetch(`${config.endpoint}/tags`, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) return { ok: false, models: [] };
     const data: OllamaTagsResponse = await res.json();
     return { ok: true, models: data.models?.map((m) => m.name) || [] };
@@ -105,6 +107,12 @@ function throttle(): void {
   lastChatTime = now;
 }
 
+function friendlyStatus(status: number): string {
+  if (status === 401 || status === 403) return 'AI request was not authorised. Please reload to sign in again.';
+  if (status === 429) return 'The AI service is busy. Please try again in a moment.';
+  return `AI request failed: ${status}`;
+}
+
 function extractContent(data: unknown): string {
   if (!isRecord(data)) return '';
   const message = (data as ChatResponse).message;
@@ -119,12 +127,13 @@ export async function chatMessages(messages: ChatMessage[]): Promise<string> {
   const config = getAIConfig();
   if (!isEndpointAllowed(config.endpoint)) throw new Error('AI endpoint not allowed');
 
-  const res = await fetch(`${config.endpoint}/chat`, {
+  const res = await apiFetch(`${config.endpoint}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: config.model, messages, stream: false }),
+    signal: AbortSignal.timeout(45000),
   });
-  if (!res.ok) throw new Error(`AI request failed: ${res.status}`);
+  if (!res.ok) throw new Error(friendlyStatus(res.status));
   return extractContent(await res.json());
 }
 
@@ -146,12 +155,15 @@ export async function chat(
   const config = getAIConfig();
   if (!isEndpointAllowed(config.endpoint)) throw new Error('AI endpoint not allowed');
 
-  const res = await fetch(`${config.endpoint}/chat`, {
+  // Local Ollama streams NDJSON; the Midway-protected Bedrock route answers
+  // with a single JSON line. Both are handled by the line reader below.
+  const res = await apiFetch(`${config.endpoint}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: config.model, messages, stream: true }),
+    signal: AbortSignal.timeout(45000),
   });
-  if (!res.ok) throw new Error(`AI request failed: ${res.status}`);
+  if (!res.ok) throw new Error(friendlyStatus(res.status));
 
   const reader = res.body?.getReader();
   if (!reader) throw new Error('No response body');
