@@ -15,5 +15,6 @@ region = "eu-west-1"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
-# After importing the legacy tables (README.md) these names point at the existing data:
-parameter_overrides = "Stage=prod ReviewsTableName=promo-track-reviews UsersTableName=promo-track-users AllowedOrigins='https://promo-track.harmony.a2z.com,https://promo-track.beta.harmony.a2z.com'"
+# The legacy stacks own promo-track-users / promo-track-reviews without a Retain policy, so prod
+# uses fresh "-v2" tables and the data was copied over (README.md, "Production cut-over").
+parameter_overrides = "Stage=prod ReviewsTableName=promo-track-reviews-v2 UsersTableName=promo-track-users-v2 AllowedOrigins='https://promo-track.harmony.a2z.com'"

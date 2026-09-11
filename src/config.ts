@@ -15,10 +15,10 @@
 const env = import.meta.env;
 
 export const REVIEW_API_URL: string =
-  env.VITE_REVIEW_API_URL || 'https://1jvjxaiuig.execute-api.eu-west-1.amazonaws.com/prod';
+  env.VITE_REVIEW_API_URL || 'https://zk0njdczql.execute-api.eu-west-1.amazonaws.com/prod';
 
 export const USERDATA_API_URL: string =
-  env.VITE_USERDATA_API_URL || 'https://t8b50k0lwh.execute-api.eu-west-1.amazonaws.com/prod';
+  env.VITE_USERDATA_API_URL || 'https://zk0njdczql.execute-api.eu-west-1.amazonaws.com/prod';
 
 /**
  * AI proxy. Lives on the same API as /reviews and /userdata (behind the Midway

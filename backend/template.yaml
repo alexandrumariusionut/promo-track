@@ -59,7 +59,7 @@ Mappings:
       Audiences: "promo-track.beta.harmony.a2z.com"
       TableSuffix: "-beta"
     prod:
-      Audiences: "promo-track.harmony.a2z.com,promo-track.beta.harmony.a2z.com"
+      Audiences: "promo-track.harmony.a2z.com"
       TableSuffix: ""
 
 # ─────────────────────────────────────────────────────────────────────────────

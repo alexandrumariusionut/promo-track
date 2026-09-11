@@ -16,9 +16,8 @@
     ],
     "connect-src": [
       "midway-auth.amazon.com",
-      "1jvjxaiuig.execute-api.eu-west-1.amazonaws.com",
-      "t8b50k0lwh.execute-api.eu-west-1.amazonaws.com",
-      "g093baotu0.execute-api.eu-west-1.amazonaws.com"
+      "g093baotu0.execute-api.eu-west-1.amazonaws.com",
+      "zk0njdczql.execute-api.eu-west-1.amazonaws.com"
     ],
     "img-src": [
       "data:",

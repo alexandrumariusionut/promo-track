@@ -43,46 +43,31 @@ npm run deploy:prod   # stack promo-track-backend, existing prod tables
 CI deploys beta automatically on pushes to `main` (see `.github/workflows/ci.yml`, needs the
 `AWS_DEPLOY_ROLE_ARN` secret for OIDC). Production is manual.
 
-## One-time production migration (two legacy stacks → this stack)
+## Production cut-over (done 2026-09-11)
 
-The legacy stacks (`backend/review`, `backend/userdata` in git history) each own a table by
-fixed name: `promo-track-reviews` and `promo-track-users`. CloudFormation will not let a second
-stack create a table with the same name, and deleting the legacy stacks must not delete data.
-Both tables already carry `DeletionPolicy: Retain` (deployed in phase 1), so the safe sequence is:
+The two legacy stacks (`promo-track-userdata`, `promo-track-review`) were deployed **without**
+`DeletionPolicy: Retain` on their tables, so importing the tables into this stack (which requires
+deleting the legacy stacks first) would have destroyed the data. Instead:
 
-1. Deploy the beta stack and verify the frontend against it end to end.
-2. **Detach the tables from the legacy stacks without deleting them.** In each legacy stack,
-   confirm the table resource has `DeletionPolicy: Retain` in the *deployed* template
-   (`aws cloudformation get-template --stack-name <legacy>`). If it does not, deploy the
-   phase-1 templates first — that is a metadata-only change.
-3. Delete the two legacy stacks:
-   `aws cloudformation delete-stack --stack-name <review-stack>` and the userdata one.
-   The API Gateways and Lambdas are removed; the tables are retained (orphaned).
-   Existing clients get errors from this point until step 5 — do it in a quiet window.
-4. Import the orphaned tables into the new stack:
-   ```bash
-   sam build
-   sam deploy --config-env prod --no-execute-changeset   # produces packaged template + change set; cancel it
-   aws cloudformation create-change-set \
-     --stack-name promo-track-backend --change-set-type IMPORT \
-     --change-set-name import-tables \
-     --resources-to-import '[
-       {"ResourceType":"AWS::DynamoDB::Table","LogicalResourceId":"ReviewsTable","ResourceIdentifier":{"TableName":"promo-track-reviews"}},
-       {"ResourceType":"AWS::DynamoDB::Table","LogicalResourceId":"UsersTable","ResourceIdentifier":{"TableName":"promo-track-users"}}]' \
-     --template-body file://.aws-sam/build/template.yaml \
-     --parameters ParameterKey=Stage,ParameterValue=prod \
-                  ParameterKey=ReviewsTableName,ParameterValue=promo-track-reviews \
-                  ParameterKey=UsersTableName,ParameterValue=promo-track-users \
-     --capabilities CAPABILITY_IAM
-   aws cloudformation execute-change-set --stack-name promo-track-backend --change-set-name import-tables
-   ```
-   An IMPORT change set may only contain the imported resources on a brand-new stack, so the
-   first import creates the stack with just the two tables.
-5. Deploy the rest of the stack normally: `npm run deploy:prod`.
-6. Take the `ApiUrl` output and set both `VITE_REVIEW_API_URL` and `VITE_USERDATA_API_URL`
-   to it (Amplify environment variables + `.harmony/harmony-metadata.json` `connect-src`), then
-   redeploy the frontend. Remove the two old API hostnames from the CSP afterwards.
+1. On-demand backup `promo-track-users-pre-cutover-20260911` of `promo-track-users` (5 users; `promo-track-reviews` was empty).
+2. `sam deploy --config-env prod` created stack `promo-track-backend` with fresh tables
+   `promo-track-users-v2` / `promo-track-reviews-v2` (Retain, PITR, deletion protection) and API `zk0njdczql`.
+3. All items were copied with `batch-write-item` and verified identical (`scan` both tables, compare).
+4. Prod audience tightened to `promo-track.harmony.a2z.com` only.
+5. Frontend: `.env.production` points at `zk0njdczql`; Harmony CSP `connect-src` updated; Harmony prod deployed.
 
-Rollback at any point before step 6: redeploy the phase-1 legacy templates; they will
-recreate their APIs and, because the tables still exist by name, fail on table creation —
-so import the tables back into them the same way, or simply keep the new stack and finish.
+Still to do once nobody can be on an old bundle (no old bundle was ever live in prod, and beta moved
+to `g093baotu0` on 2026-09-10):
+
+```bash
+# Legacy API stacks (their tables have NO Retain policy — delete-stack WILL delete promo-track-users / promo-track-reviews).
+# The data already lives in promo-track-users-v2; the on-demand backup covers the rest.
+aws cloudformation delete-stack --region eu-west-1 --stack-name promo-track-review
+aws cloudformation delete-stack --region eu-west-1 --stack-name promo-track-userdata
+# Standalone unauthenticated Bedrock proxy, replaced by /ai/chat:
+aws apigatewayv2 delete-api --region eu-west-1 --api-id 706rf9fx5c
+aws lambda delete-function --region eu-west-1 --function-name promo-track-bedrock
+```
+
+Rollback before the legacy stacks are deleted: redeploy a frontend with the old API URLs. After
+that point, restore from `promo-track-users-pre-cutover-20260911` or PITR on the `-v2` tables.
