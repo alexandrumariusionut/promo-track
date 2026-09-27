@@ -61,9 +61,6 @@ Write your rough draft, then let AI polish it into professional, promotion-ready
 
 Import your GSD Scorecard PDF to automatically extract performance metrics. Visual progress bars show green (meeting target) or red (below target) at a glance, so you know exactly where you stand against level expectations.
 
-<p align="center">
-  <img src="screenshots/08-metrics-scorecard.png" alt="GSD Scorecard with color-coded metrics" width="700">
-</p>
 
 ### 📄 Document Generation
 
@@ -140,7 +137,6 @@ A comprehensive FAQ covering everything from "What should I do first?" to "How m
 | AI Formatting | ![](screenshots/05-ai-formatting-dialog.png) |
 | AI Output | ![](screenshots/06-ai-formatted-output.png) |
 | STAR Cards | ![](screenshots/07-star-entries-cards.png) |
-| Metrics Scorecard | ![](screenshots/08-metrics-scorecard.png) |
 | Document Preview | ![](screenshots/09-document-preview.png) |
 | Share for Review | ![](screenshots/10-share-for-review.png) |
 | Manager Review | ![](screenshots/11-manager-review.png) |
