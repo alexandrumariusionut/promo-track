@@ -66,9 +66,6 @@ Import your GSD Scorecard PDF to automatically extract performance metrics. Visu
 
 Preview and generate your promotion document in the official format — complete with employee information, scope of role, performance strengths, and all your STAR narratives organized by Leadership Principle.
 
-<p align="center">
-  <img src="screenshots/09-document-preview.png" alt="Promotion document preview" width="700">
-</p>
 
 ### 👥 Manager Review Workflow
 
@@ -137,7 +134,6 @@ A comprehensive FAQ covering everything from "What should I do first?" to "How m
 | AI Formatting | ![](screenshots/05-ai-formatting-dialog.png) |
 | AI Output | ![](screenshots/06-ai-formatted-output.png) |
 | STAR Cards | ![](screenshots/07-star-entries-cards.png) |
-| Document Preview | ![](screenshots/09-document-preview.png) |
 | Share for Review | ![](screenshots/10-share-for-review.png) |
 | Manager Review | ![](screenshots/11-manager-review.png) |
 | Review Submission | ![](screenshots/12-manager-review-submit.png) |
